@@ -184,7 +184,6 @@ if ($id && $source) {
     $recipe["outputs"]     = $outputs;
 
     echo json_encode($recipe);
-
 } else {
     // ── Liste ───────────────────────────────────────────────────────────────
     $page   = max(1, intval($_GET["page"] ?? 1));
@@ -259,6 +258,34 @@ if ($id && $source) {
     }
     $countStmt->execute();
     $total = $countStmt->fetchColumn();
+    // with_ingredients=1 gelirse her tarifin malzemelerini de ekle
+    if (isset($_GET["with_ingredients"])) {
+        $ingStmt = $pdo->prepare("
+            SELECT
+                ri.item_id,
+                ri.qty_min,
+                ri.qty_max,
+                i.name,
+                i.icon,
+                i.grade,
+                i.grade_name,
+                d.buy_price,
+                d.sell_price,
+                p.last_sold_price
+            FROM recipe_inputs ri
+            JOIN items i             ON i.id      = ri.item_id
+            LEFT JOIN item_details d ON d.item_id = ri.item_id
+            LEFT JOIN item_prices  p ON p.item_id = ri.item_id
+            WHERE ri.recipe_id = ? AND ri.recipe_source = ?
+            AND ri.is_alternative = 0
+            ORDER BY ri.is_key DESC, ri.id ASC
+        ");
+        foreach ($recipes as &$recipe) {
+            $ingStmt->execute([$recipe["id"], $recipe["source"]]);
+            $recipe["ingredients"] = $ingStmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        unset($recipe);
+    }
 
     echo json_encode([
         "data"        => $recipes,
@@ -268,4 +295,3 @@ if ($id && $source) {
         "total_pages" => ceil($total / $limit)
     ]);
 }
-?>
