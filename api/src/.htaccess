@@ -1,0 +1,2 @@
+# Not meant to be served over HTTP (scripts run from the command line)
+Require all denied
