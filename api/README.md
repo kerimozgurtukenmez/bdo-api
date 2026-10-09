@@ -52,47 +52,30 @@ runs what is due and exits. Intervals: `"worker"` in `config/config.php`.
 
 ## Running on a server
 
-The same code runs on any machine with PHP 8.2+, MariaDB and Apache — a spare
-computer at home or a rented server. Composer and Node are only needed where
-you build: copy the built site (`site/dist/`) along.
+The same code runs on any machine with PHP 8.2+, MariaDB, Apache and Node
+(to build the site) — a spare Linux PC at home or a rented server. The files
+for it are in `deploy/`; the server follows `main` and updates with
+`./deploy/update.sh` (pull, build, database schema, check, restart the worker).
+`php bin/doctor.php` checks a machine and says what to fix; `php bin/migrate.php`
+brings the database schema up to date.
 
-1. **Packages** (Arch Linux): `sudo pacman -S apache php php-apache mariadb`.
-   In `/etc/httpd/conf/httpd.conf` load `mod_rewrite` and PHP (`php_module`,
-   with `mpm_prefork` instead of `mpm_event`), and allow `.htaccess` files:
-   `AllowOverride All` for the document root (`/srv/http`).
-2. **Database**: `sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql`,
-   `sudo systemctl enable --now mariadb httpd`, then create the database and a
-   user with a password (not root), and put them in `config/config.local.php`.
-3. **Code and data**: put the project in `/srv/http/BDO-website`, so the
-   URLs are the same as under XAMPP (`/BDO-website/site/`, no rebuild). Copy
-   what git does not have: `site/dist/`, `api/public/icons/`, `api/data/`, and
-   the database (`mysqldump bdo_craft > bdo_craft.sql` here, `mariadb bdo_craft < bdo_craft.sql` there).
-4. **Worker as a service**, so it starts with the machine:
+Setting one up (Arch Linux; the project lives in `/srv/http/BDO-website`, so
+the URLs are the same as under XAMPP):
 
-   ```ini
-   # /etc/systemd/system/bdo-worker.service
-   [Unit]
-   Description=BDO Craft data worker
-   After=network-online.target mariadb.service
-   Wants=network-online.target
+1. `sudo pacman -S git apache php php-apache mariadb nodejs npm`; in
+   `/etc/php/php.ini` enable `extension=pdo_mysql` (and any extension `doctor.php` reports).
+2. Database: `sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql`,
+   `sudo systemctl enable --now mariadb`, then create the database and a user
+   and put them in `api/config/config.local.php`.
+3. Code: clone into `/srv/http/BDO-website`, then copy over what git does not
+   have: a dump of the database, `api/data/` and `api/public/icons/`.
+4. Apache: include `deploy/apache.conf` in `/etc/httpd/conf/httpd.conf` (it says
+   what else to change), `sudo systemctl enable --now httpd`.
+5. `./deploy/update.sh` builds the site and checks everything; then
+   `deploy/bdo-worker@.service` runs the worker with the machine.
+6. Open `http://<server ip>/BDO-website/site/` from another computer.
 
-   [Service]
-   User=http
-   WorkingDirectory=/srv/http/BDO-website/api
-   ExecStart=/usr/bin/php bin/worker.php
-   Restart=always
-   RestartSec=60
-
-   [Install]
-   WantedBy=multi-user.target
-   ```
-
-   `sudo systemctl enable --now bdo-worker`; its output: `journalctl -u bdo-worker -f`.
-   The `http` user needs write access to `api/data/` and `api/public/icons/`.
-   Without systemd, cron works too: `*/10 * * * * cd /srv/http/BDO-website/api && php bin/worker.php --once`.
-5. **Open it** from another computer at `http://<server ip>/BDO-website/site/`.
-
-On the home network that is all. Before opening it to the internet: a domain
+On a home network that is all. Before opening it to the internet: a domain
 with HTTPS (certbot), a firewall that only lets the web server through, and
 `"debug" => false` (the default). To serve the site at another path, build it
 with `SITE_BASE=/ npm run build` and set `VITE_API_BASE` in `site/.env` and
@@ -122,6 +105,8 @@ the tests are worked out by hand from it.
 | `bin/import.php --fresh` | Drops and recreates all tables from `database/schema.sql` first. Needed after schema changes. |
 | `bin/update_prices.php` | Fetches prices from arsha.io for every recipe item not updated in the last hour (items not on the market: once a day) and records the day's price in the price history. The market API blocks fast clients now and then; failed batches are retried on the next run. `--force` refreshes everything, or pass item ids. |
 | `bin/worker.php` | Runs the scripts above on a schedule while it runs (see Keeping the data fresh). |
+| `bin/migrate.php` | Creates missing tables and columns from `database/schema.sql`; keeps the data. |
+| `bin/doctor.php` | Checks PHP, extensions, the database, the built site and folders; says what to fix. |
 | `bin/download_icons.php` | Downloads the icons of all recipes and recipe items into `public/icons/`. Skips icons already on disk, stops after 10 failures in a row. Until an icon is downloaded the API links the source. |
 
 ## Endpoints

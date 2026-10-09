@@ -1,0 +1,20 @@
+# Runs bin/worker.php (keeps prices and game data fresh) as a service, as the
+# user named after the @: bdo-worker@yourname.service
+#
+#   sudo cp deploy/bdo-worker@.service /etc/systemd/system/
+#   sudo systemctl enable --now bdo-worker@$USER
+#   journalctl -u bdo-worker@$USER -f      # what it is doing
+[Unit]
+Description=BDO Craft data worker
+After=network-online.target mariadb.service
+Wants=network-online.target
+
+[Service]
+User=%i
+WorkingDirectory=/srv/http/BDO-website/api
+ExecStart=/usr/bin/php bin/worker.php
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target
