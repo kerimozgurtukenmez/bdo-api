@@ -143,7 +143,7 @@ const percent = (fraction) => `${number(fraction * 100)}%`
             <thead>
               <tr>
                 <th scope="col">Ingredients</th>
-                <th scope="col" class="right">Market cost</th>
+                <th scope="col" class="right">Cost per box</th>
                 <th scope="col" class="right">Profit</th>
                 <th scope="col"><span class="visually-hidden">Actions</span></th>
               </tr>
@@ -151,14 +151,25 @@ const percent = (fraction) => `${number(fraction * 100)}%`
             <tbody>
               <tr v-for="recipe in expanded[box.item.id] ? box.recipes : box.recipes.slice(0, SHOWN)" :key="recipe.key">
                 <td>
-                  <div class="ingredients">
-                    <RouterLink v-for="ing in recipe.ingredients" :key="ing.item.id" :to="itemRoute(ing.item)" :title="`${ing.item.name} × ${ing.qty}`">
-                      <ItemIcon :item="ing.item" :size="32" :qty="ing.qty" />
-                    </RouterLink>
-                    <span v-if="recipe.ingredients.length === 1" class="ingredient-name small">{{ recipe.ingredients[0].item.name }}</span>
-                  </div>
+                  <!-- What to buy for one box: quantity × price each = line total -->
+                  <ul class="ingredients">
+                    <li v-for="ing in recipe.ingredients" :key="ing.item.id" class="ingredient">
+                      <RouterLink :to="itemRoute(ing.item)" tabindex="-1" aria-hidden="true">
+                        <ItemIcon :item="ing.item" :size="32" />
+                      </RouterLink>
+                      <div class="ingredient-text">
+                        <ItemLink :item="ing.item" />
+                        <span class="ingredient-math num">
+                          × {{ number(ing.qty) }}
+                          <template v-if="ing.price"> · {{ silver(ing.price.unit) }} each</template>
+                          <template v-else> · no price</template>
+                        </span>
+                      </div>
+                      <SilverAmount v-if="recipe.ingredients.length > 1" class="line-total" :value="ing.price ? ing.qty * ing.price.unit : null" />
+                    </li>
+                  </ul>
                 </td>
-                <td class="right"><SilverAmount :value="recipe.cost" /></td>
+                <td class="right cost"><SilverAmount :value="recipe.cost" /></td>
                 <td class="right" :class="recipe.profit == null ? null : recipe.profit >= 0 ? 'positive' : 'negative'">
                   <SilverAmount :value="recipe.profit" />
                 </td>
@@ -317,19 +328,45 @@ const percent = (fraction) => `${number(fraction * 100)}%`
 }
 
 .ingredients {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.ingredients a {
+.ingredient {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.ingredient + .ingredient {
+  margin-top: var(--space-2);
+}
+
+.ingredient a {
   display: inline-flex;
   border-radius: var(--radius-sm);
 }
 
-.ingredient-name {
+.ingredient-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ingredient-math {
   color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.line-total {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.cost {
+  font-weight: 600;
 }
 
 .more {
