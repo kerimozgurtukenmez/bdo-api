@@ -66,6 +66,11 @@ const RANGES = [
   { value: '90', label: '90 days' },
 ]
 const days = ref('30')
+const historyStart = computed(() =>
+  history.value?.points.length
+    ? new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).format(new Date(history.value.points[0].t * 1000))
+    : null,
+)
 const history = ref(null)
 const historyError = ref(null)
 
@@ -195,7 +200,10 @@ watch(usedPage, () => item.value && loadUsedIn())
             </div>
             <p v-if="historyError" class="negative small">{{ historyError.message }}</p>
             <div v-else-if="!history" class="skeleton" style="height: 220px"></div>
-            <p v-else-if="!history.points.length" class="muted small">No price history yet.</p>
+            <!-- History is recorded once a day from the first price update on; a line needs two days -->
+            <p v-else-if="history.points.length < 2" class="muted small">
+              Price history is recorded once a day{{ historyStart ? ` since ${historyStart}` : '' }}. The chart appears from the second day.
+            </p>
             <PriceChart v-else :points="history.points" :label="`${item.name} market price`" />
           </div>
         </div>

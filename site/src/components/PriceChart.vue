@@ -61,8 +61,9 @@ const area = computed(() => {
 
 const tickLabel = (value) => (yMax.value >= 1_000_000 ? compact(value) : silver(value))
 
-const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
-const longDateFormat = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+// Points are days at 00:00 UTC: format them in UTC so every time zone sees the same date
+const dateFormat = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' })
+const longDateFormat = new Intl.DateTimeFormat('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' })
 const date = (t) => dateFormat.format(new Date(t * 1000))
 
 // About four date labels, evenly spread
