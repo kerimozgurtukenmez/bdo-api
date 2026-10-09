@@ -1,0 +1,4 @@
+# Apache (XAMPP): only public/ is meant to be served. Code, config, data,
+# CLI scripts, tests and vendor/ (dev tools) must never be reachable over HTTP.
+RewriteEngine On
+RewriteRule !^public(/|$) - [F]
