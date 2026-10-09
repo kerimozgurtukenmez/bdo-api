@@ -23,8 +23,9 @@ alan adında 7/24 çalışan bir site, bozulmayan kod (test + CI), kaybolmayan v
 | Alchemy / Processing / Items / tarif detay sayfaları | ❌ Boş dosyalar, `recipe.php` linkleri 404 |
 | Veri kaynağı | ✅ Yeni scraper (`import/scrape.php`); veri 2026-10-09 itibarıyla güncel. Eşya detayları (açıklama, NPC satıcıları) hâlâ eski. |
 | Fiyatlar | ⚠️ Sadece EU; arsha.io sık isteği engelliyor, otomatik güncelleme yok |
-| Git | ✅ Yerelde commit'li, push sona bırakıldı. Bu dosya henüz hiçbir repoda değil. |
-| Test, CI, yayın, yedek | ❌ Yok |
+| Git | ✅ Tek repo (`api/` + `site/`), iki eski reponun geçmişi korunarak birleştirildi. Yerelde commit'li, push sona bırakıldı. |
+| Test | ✅ 29 test (PHPUnit) + PHPStan seviye 6, `composer check` |
+| CI, yayın, yedek | ❌ Yok |
 
 ---
 
@@ -35,7 +36,7 @@ Bunlar ilerideki işin şeklini değiştiriyor; ilgili fazdan önce netleşmeli.
 | # | Karar | Önerim | Gerekçe | Ne zaman |
 | --- | --- | --- | --- | --- |
 | K1 | ~~Veri nereden geliyor?~~ | ✅ **Karar verildi:** bdocodex, site sahibinin izniyle. Eski scraper kayıptı, yenisi yazıldı. | Eski scrape doğruymuş: değişmeyen kayıtlar birebir aynı çıktı, sadece iki alan yanlış adlandırılmıştı. | — |
-| K2 | Tek repo mu, iki repo mu? | **Tek repo (monorepo):** `api/`, `site/`, `data/` | API ile site birlikte değişiyor (son çalışmada da öyle oldu). Tek kişilik projede iki repo ek yük. Geçmiş korunarak birleştirilebilir. | Faz 0 |
+| K2 | ~~Tek repo mu, iki repo mu?~~ | ✅ **Tek repo:** `api/` (uç noktalar `api/public/`), `site/` | API ile site birlikte değişiyor; iki eski reponun geçmişi korundu. Eski repoların yedeği `~/bdo-backup-2026-10-09/`. | — |
 | K3 | Frontend teknolojisi | **İçerik sayfaları PHP'de** (SEO için sunucuda render), **hesaplayıcı Vue** ile | Hesaplayıcı çok etkileşimli: ağaç, tarif değiştirme, ikame, canlı toplamlar. Vanilla JS ile büyüdükçe yönetmesi zorlaşır. Vue öğrenmesi en kolay seçenek. | Faz 1 öncesi |
 | K4 | Barındırma | **Küçük VPS + Docker** (aylık ~5 €) | Fiyat güncellemesi için cron ve uzun çalışan betik lazım. Paylaşımlı hosting bunları kısıtlıyor. Docker ile yerel ortam ve sunucu aynı olur. | Faz 5 öncesi |
 | K5 | Site adı ve domain | Sen seç | Şu an her yerde "MyWebsite" yazıyor. | Faz 5 öncesi |
@@ -48,10 +49,10 @@ Bunlar ilerideki işin şeklini değiştiriyor; ilgili fazdan önce netleşmeli.
 Amaç: güvenli bir başlangıç noktası. Hiçbir şey kaybolmasın, sonraki işler sağlam zemine otursun.
 
 - [x] Mevcut değişiklikleri commit et (yerelde; push en sona bırakıldı, commit'lerde Claude imzası yok)
-- [ ] K2'ye göre repo yapısını kur; bu dosyayı repoya taşı
+- [x] K2: tek repoya geç, bu dosyayı repoya taşı
 - [x] K1: veri kaynağını netleştir, yeni scraper yaz, veriyi tazele
 - [ ] Kod kuralları: yorumlar İngilizce, tek biçim (PHP-CS-Fixer, Prettier)
-- [ ] Hesaplayıcı için ilk testler (PHPUnit). Arayüz yazılırken çekirdek mantık bozulmasın diye en başta.
+- [x] Hesaplayıcı için ilk testler (PHPUnit): 29 test; ilk çalıştırmada gerçek bir hata yakaladı
 
 ## Faz 1 — MVP: Hesaplayıcı arayüzü · L
 
@@ -97,9 +98,11 @@ Amaç: verinin güncel, doğru ve kendiliğinden yenilenir olması.
 
 Amaç: kod büyüdükçe bozulmasın, değişiklik yapmak korkutucu olmasın.
 
-- [ ] Composer ve autoload (elle `require` yerine)
-- [ ] Testleri genişlet: ağaç, döngüler, toplamlar, API yanıt formatı, import
-- [ ] Statik analiz: PHPStan (PHP), ESLint (JS)
+- [x] Composer (geliştirme araçları için; API'nin çalışması için gerekmiyor)
+- [x] Testler: hesaplayıcı (ağaç, döngüler, toplamlar, modlar), import kuralları, bdocodex ayrıştırma, fiyat seçimi
+- [ ] Testleri genişlet: API uç noktaları (yanıt formatı, hata kodları)
+- [x] Statik analiz: PHPStan seviye 6, hatasız
+- [ ] PHPStan seviyesini yükselt (8'de 12 küçük bulgu var); ESLint (JS)
 - [ ] CI: GitHub Actions, her push'ta lint + test
 - [ ] Sürümlü şema migration'ları (`--fresh` ile her şeyi silmek yerine)
 - [ ] API sürümleme (`/api/v1/...`) ve hız sınırı (rate limit)
