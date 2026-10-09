@@ -1,5 +1,5 @@
-// Relative to the page: bdo-site and bdo-api are sibling folders
-const API = '../bdo-api/api';
+// Relative to the page: site/ and api/ are sibling folders in the repository
+const API = '../api/public';
 
 // Page Status
 let currentPage = 1;

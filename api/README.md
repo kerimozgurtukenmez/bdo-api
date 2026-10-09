@@ -27,7 +27,7 @@ Settings live in `config/config.php`; put machine-specific overrides in
 
 ## Endpoints
 
-`api/index.php` lists them with examples.
+`public/index.php` lists them with examples; it is the only folder meant to be served over HTTP.
 
 - `items.php` — `?id=` one item (details, price, recipes that make it) or `?search=` (`craftable=1`, `source=`)
 - `recipes.php` — `?source=&id=` one recipe, `?item_id=&grouped=1` recipes for an item, or a filtered list

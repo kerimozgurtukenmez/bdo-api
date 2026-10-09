@@ -15,7 +15,7 @@ alan adında 7/24 çalışan bir site, bozulmayan kod (test + CI), kaybolmayan v
 
 | Alan | Durum |
 | --- | --- |
-| API + hesaplayıcı (`craft.php`) | ✅ Çalışıyor, test edildi (bkz. `bdo-api/README.md`) |
+| API + hesaplayıcı (`craft.php`) | ✅ Çalışıyor, test edildi (bkz. `api/README.md`) |
 | Veritabanı şeması, import, fiyat güncelleyici | ✅ Repoda, tekrarlanabilir |
 | Cooking liste sayfası | ✅ Çalışıyor (filtreler dahil) |
 | Hesaplayıcı arayüzü | ❌ Yok, asıl ürün bu |

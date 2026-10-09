@@ -1,0 +1,6 @@
+# Only site/ and api/public/ are meant to be served. Never expose the
+# repository internals (.git, dotfiles) or database dumps.
+RedirectMatch 404 "/\."
+<FilesMatch "\.sql$">
+    Require all denied
+</FilesMatch>
