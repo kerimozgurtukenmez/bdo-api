@@ -265,8 +265,6 @@ foreach (RECIPE_SOURCES as $source) {
             $warnings[] = "$label: ingredient_ids do not match ingredients, alternatives ignored";
         }
 
-        // Scraped "proc_rate" is the total weight of the ingredients and
-        // "proc_amount" duplicates the processing category, so it is not stored.
         $recipeStmt->execute([
             $source,
             $recipe["id"],
@@ -279,7 +277,7 @@ foreach (RECIPE_SOURCES as $source) {
             $recipe["skill_level"] ?? null,
             $recipe["skill_sort"] ?? 0,
             $recipe["exp"] ?? null,
-            isset($recipe["proc_rate"]) ? round($recipe["proc_rate"], 2) : null,
+            isset($recipe["weight"]) ? round($recipe["weight"], 2) : null,
         ]);
 
         foreach ($recipe["ingredients"] as $slot => $ing) {
@@ -315,6 +313,15 @@ foreach (RECIPE_SOURCES as $source) {
     step("  $imported imported, " . count($skipped) . " skipped (no ingredients/products or unknown items)"
         . ($ungrouped ? ", $ungrouped without alternatives" : ""));
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 5: remove items that are no longer in items.json (removed from the game)
+// ─────────────────────────────────────────────────────────────────────────────
+$stale = array_diff($pdo->query("SELECT id FROM items")->fetchAll(PDO::FETCH_COLUMN), array_keys($itemNames));
+foreach (array_chunk($stale, 1000) as $chunk) {
+    $pdo->prepare("DELETE FROM items WHERE id IN (" . implode(",", array_fill(0, count($chunk), "?")) . ")")->execute($chunk);
+}
+step("Removed " . count($stale) . " items that bdocodex no longer lists");
 
 $pdo->commit();
 
