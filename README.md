@@ -18,7 +18,7 @@ and data as described in [`api/README.md`](api/README.md), then:
 cd site
 npm install
 npm run dev      # http://localhost:5173, API requests go to Apache
-npm run build    # site/dist, served at http://localhost/BDO-website/site/dist/
+npm run build    # site/dist, served at http://localhost/BDO-website/site/ (site/.htaccess)
 npm run lint
 ```
 

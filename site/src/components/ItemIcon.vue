@@ -38,6 +38,9 @@ watch(() => props.item.icon, () => (failed.value = false))
   height: 100%;
   border-radius: inherit;
   object-fit: cover;
+  /* Firefox draws the alt text while an image loads; keep it for screen readers only */
+  color: transparent;
+  font-size: 0;
 }
 
 .frame-1 { border-color: color-mix(in srgb, var(--grade-1) 60%, transparent); }

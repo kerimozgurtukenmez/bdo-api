@@ -1,0 +1,5 @@
+# Apache (XAMPP): this folder's URL serves the built app in dist/
+# (run `npm run build` first). Source files and node_modules are never served.
+RewriteEngine On
+RewriteRule ^dist/ - [L]
+RewriteRule ^(.*)$ dist/$1 [L]

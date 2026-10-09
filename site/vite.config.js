@@ -2,8 +2,8 @@ import { writeFileSync } from 'node:fs'
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 
-// Where the built site is served from. XAMPP: htdocs/BDO-website/site/dist
-const base = process.env.SITE_BASE ?? '/BDO-website/site/dist/'
+// URL the built site is served at. XAMPP: site/.htaccess maps /BDO-website/site/ to dist/
+const base = process.env.SITE_BASE ?? '/BDO-website/site/'
 
 // The site is a single-page app: Apache answers unknown paths with index.html
 function apacheFallback() {
