@@ -17,6 +17,7 @@ if (PHP_SAPI !== "cli") {
 }
 
 require __DIR__ . "/../src/bootstrap.php";
+require __DIR__ . "/../src/importer.php";
 
 set_time_limit(0);
 ini_set("memory_limit", "2G");
@@ -59,10 +60,7 @@ if ($fresh) {
 }
 
 step("Applying database/schema.sql...");
-$schema = preg_replace('/^\s*--.*$/m', "", file_get_contents(__DIR__ . "/../database/schema.sql"));
-foreach (array_filter(array_map("trim", explode(";", $schema))) as $statement) {
-    $pdo->exec($statement);
-}
+apply_schema($pdo);
 
 $pdo->beginTransaction();
 
@@ -110,11 +108,6 @@ $stmt = $pdo->prepare("
         warehouse_capacity = VALUES(warehouse_capacity)
 ");
 
-// The game data gives every item a buy price, but only items whose description
-// says a vendor sells them can actually be bought for it.
-// ("purchased from" is left out: it also matches "made with X purchased from a Shop")
-$vendorPattern = '/\b(can|may) be (bought|purchased)\b|\bpurchas(e|able) (it )?(from|at)\b|\bsold by\b/i';
-
 $count = $vendors = 0;
 foreach (readJson("item_descriptions.json") as $item) {
     if (!isset($itemNames[$item["id"]])) {
@@ -122,7 +115,7 @@ foreach (readJson("item_descriptions.json") as $item) {
         continue;
     }
 
-    $vendorSold = preg_match($vendorPattern, $item["description"] ?? "") ? 1 : 0;
+    $vendorSold = is_vendor_sold($item["description"] ?? null) ? 1 : 0;
     $stmt->execute([
         $item["id"],
         $item["name_kr"] ?? null,
@@ -175,44 +168,6 @@ step("  $count new prices");
 // STEP 4: recipes_*.json → recipes, recipe_inputs, recipe_outputs
 // ─────────────────────────────────────────────────────────────────────────────
 
-// ingredient_ids lists the slots in recipe order, each slot as its default
-// ingredient followed by the items that may replace it:
-//   [default0, alt, alt, default1, default2, alt, ...]
-// Returns slot => list of alternative item ids, or null if the list does not
-// follow that layout.
-function groupAlternatives(array $ingredients, array $ingredientIds): ?array
-{
-    $alternatives = array_fill(0, count($ingredients), []);
-    $next = 0;        // next default we expect to see
-    $slot = null;     // slot the current alternatives belong to
-
-    foreach ($ingredientIds as $id) {
-        if ($next < count($ingredients) && $id === $ingredients[$next]["item_id"]) {
-            $slot = $next++;
-            continue;
-        }
-        if ($slot === null) {
-            return null;
-        }
-        if ($id !== $ingredients[$slot]["item_id"] && !in_array($id, $alternatives[$slot], true)) {
-            $alternatives[$slot][] = $id;
-        }
-    }
-
-    return $next === count($ingredients) ? $alternatives : null;
-}
-
-// The product the recipe is named after; otherwise the first output.
-function mainOutputIndex(array $recipe, array $itemNames): int
-{
-    foreach ($recipe["output"] as $i => $out) {
-        if (strcasecmp($itemNames[$out["item_id"]] ?? "", trim($recipe["name"])) === 0) {
-            return $i;
-        }
-    }
-    return 0;
-}
-
 $pdo->exec("DELETE FROM recipes");  // inputs/outputs are removed by ON DELETE CASCADE
 
 $recipeStmt = $pdo->prepare("
@@ -258,7 +213,7 @@ foreach (RECIPE_SOURCES as $source) {
             continue;
         }
 
-        $alternatives = groupAlternatives($recipe["ingredients"], $recipe["ingredient_ids"] ?? []);
+        $alternatives = group_alternatives($recipe["ingredients"], $recipe["ingredient_ids"] ?? []);
         if ($alternatives === null) {
             $alternatives = array_fill(0, count($recipe["ingredients"]), []);
             $ungrouped++;
@@ -298,7 +253,7 @@ foreach (RECIPE_SOURCES as $source) {
             }
         }
 
-        $main = mainOutputIndex($recipe, $itemNames);
+        $main = main_output_index($recipe, $itemNames);
         foreach ($recipe["output"] as $i => $out) {
             $outputStmt->execute([
                 $source, $recipe["id"], $out["item_id"],

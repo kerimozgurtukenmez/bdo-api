@@ -20,17 +20,15 @@ if (PHP_SAPI !== "cli") {
     exit("Run this script from the command line.\n");
 }
 
+require __DIR__ . "/../src/bdocodex.php";
+
 set_time_limit(0);
 ini_set("memory_limit", "3G");
 
-const BASE_URL      = "https://bdocodex.com";
-const LANG          = "us";
 const CACHE_DIR     = __DIR__ . "/cache";
 const CACHE_MAX_AGE = 24 * 3600;
 const REQUEST_DELAY = 3;  // seconds between requests
 const USER_AGENT    = "bdo-craft-calculator (data import, permitted by bdocodex)";
-
-const GRADE_NAMES = [0 => "White", 1 => "Green", 2 => "Blue", 3 => "Gold", 4 => "Orange", 5 => "Unknown"];
 
 // name => [query, page that loads it, minimum plausible row count]
 const DATASETS = [
@@ -62,7 +60,7 @@ function fetchRows(string $name, bool $refresh): array
             sleep(REQUEST_DELAY);
         }
 
-        $url = BASE_URL . "/query.php?$query&l=" . LANG;
+        $url = BDOCODEX_URL . "/query.php?$query&l=" . BDOCODEX_LANG;
         echo "  $name: downloading $url\n";
 
         $ch = curl_init($url);
@@ -70,7 +68,7 @@ function fetchRows(string $name, bool $refresh): array
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_TIMEOUT        => 300,
             CURLOPT_USERAGENT      => USER_AGENT,
-            CURLOPT_REFERER        => BASE_URL . "/" . LANG . $page,
+            CURLOPT_REFERER        => BDOCODEX_URL . "/" . BDOCODEX_LANG . $page,
             CURLOPT_ENCODING       => "",  // accept gzip
         ]);
         $body   = (string)curl_exec($ch);
@@ -98,107 +96,6 @@ function fetchRows(string $name, bool $refresh): array
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Parse — the list rows mix plain values with HTML snippets
-// ─────────────────────────────────────────────────────────────────────────────
-
-function text(string $html): string
-{
-    return trim(html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5));
-}
-
-function iconUrl(string $html): ?string
-{
-    return preg_match('#\[img src="([^"]+)"#', $html, $m) ? BASE_URL . $m[1] : null;
-}
-
-function gradeFromClass(string $html): int
-{
-    return preg_match('#item_grade_(\d)#', $html, $m) ? (int)$m[1] : 0;
-}
-
-// Ingredient or product cell: one icon block per item with its quantity
-function itemCell(string $html): array
-{
-    preg_match_all('#<div class="iconset_wrapper_medium inlinediv">(.*?)</a></div>#s', $html, $blocks);
-
-    $items = [];
-    foreach ($blocks[1] as $block) {
-        if (!preg_match('#/item/(\d+)/#', $block, $id)) {
-            continue;
-        }
-        preg_match('#quantity_small nowrap">\s*([\d~]+)\s*<#', $block, $q);
-        $qty = explode("~", $q[1] ?? "1");
-
-        $item = [
-            "item_id" => (int)$id[1],
-            "qty_min" => (int)$qty[0],
-            "qty_max" => (int)($qty[1] ?? $qty[0]),
-        ];
-        if (str_contains($block, 'data-tiptype="recipekey"')) {
-            $item["is_key"] = true;
-        }
-        $items[] = $item;
-    }
-
-    return $items;
-}
-
-function parseItems(array $rows): array
-{
-    $items = [];
-    foreach ($rows as $row) {
-        // [id, icon html, name html, ?, ?, grade, ?]
-        $id    = (int)$row[0];
-        $grade = (int)$row[5];
-        $items[$id] = [
-            "id"         => $id,
-            "name"       => text($row[2]),
-            "grade"      => $grade,
-            "grade_name" => GRADE_NAMES[$grade] ?? "Unknown",
-            "icon"       => iconUrl($row[1]),
-            "link"       => BASE_URL . "/" . LANG . "/item/$id/",
-        ];
-    }
-
-    ksort($items);
-    return array_values($items);
-}
-
-function parseRecipes(array $rows, string $source): array
-{
-    $path = $source === "processing" ? "mrecipe" : "recipe";
-
-    $recipes = [];
-    foreach ($rows as $row) {
-        // [id, icon html, name html, category, {display, sort_value}, exp,
-        //  ingredients html, weight, products html, ingredient_ids, ...]
-        $id    = (int)$row[0];
-        $exp   = preg_replace('/\D/', "", (string)$row[5]);  // "1'000" → 1000
-        $grade = gradeFromClass($row[2]);
-
-        $recipes[] = [
-            "id"             => $id,
-            "name"           => text($row[2]),
-            "grade"          => $grade,
-            "grade_name"     => GRADE_NAMES[$grade] ?? "Unknown",
-            "icon"           => iconUrl($row[1]),
-            "link"           => BASE_URL . "/" . LANG . "/$path/$id/",
-            "category"       => trim((string)$row[3]),
-            "skill_level"    => $row[4]["display"] ?? null,
-            "skill_sort"     => (int)($row[4]["sort_value"] ?? 0),
-            "exp"            => $exp === "" ? null : (int)$exp,
-            "weight"         => $row[7] === "" || $row[7] === null ? null : (float)$row[7],
-            "ingredients"    => itemCell((string)$row[6]),
-            "output"         => itemCell((string)$row[8]),
-            "ingredient_ids" => json_decode((string)$row[9], true) ?: [],
-        ];
-    }
-
-    usort($recipes, fn($a, $b) => $a["id"] <=> $b["id"]);
-    return $recipes;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Run
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -206,7 +103,7 @@ echo "Downloading...\n";
 $parsed = [];
 foreach (array_keys(DATASETS) as $name) {
     $rows = fetchRows($name, $refresh);
-    $parsed[$name] = $name === "items" ? parseItems($rows) : parseRecipes($rows, $name);
+    $parsed[$name] = $name === "items" ? codex_parse_items($rows) : codex_parse_recipes($rows, $name);
 }
 
 // What changed compared to the files we are about to replace
