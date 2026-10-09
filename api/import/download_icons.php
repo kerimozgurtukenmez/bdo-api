@@ -22,6 +22,7 @@ set_time_limit(0);
 
 const REQUEST_DELAY = 400;  // ms between downloads
 const MAX_RETRIES   = 3;
+const MAX_FAILED_IN_A_ROW = 10;  // the source or the connection is down: stop
 const USER_AGENT    = "bdo-craft-calculator (icon cache, permitted by bdocodex)";
 
 $icons = config("icons");
@@ -65,7 +66,7 @@ function download(string $url): ?string
     return null;
 }
 
-$saved = $failed = 0;
+$saved = $failed = $failedInARow = 0;
 foreach ($missing as $n => $path) {
     if ($n > 0) {
         usleep(REQUEST_DELAY * 1000);
@@ -82,8 +83,13 @@ foreach ($missing as $n => $path) {
     if ($body === null) {
         echo "  failed: $path\n";
         $failed++;
+        if (++$failedInARow >= MAX_FAILED_IN_A_ROW) {
+            echo "\nToo many failures in a row; check the connection and run this script again.\n";
+            break;
+        }
         continue;
     }
+    $failedInARow = 0;
 
     $file = $icons["dir"] . "/" . $path;
     if (!is_dir(dirname($file))) {
