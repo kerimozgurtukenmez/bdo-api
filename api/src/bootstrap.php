@@ -19,6 +19,15 @@ function config(?string $key = null): mixed
         if (is_file($local)) {
             $config = array_replace_recursive($config, require $local);
         }
+
+        // Environment variables win over both files (tests, Docker, CI)
+        $env = ["host" => "BDO_DB_HOST", "name" => "BDO_DB_NAME", "user" => "BDO_DB_USER", "pass" => "BDO_DB_PASS"];
+        foreach ($env as $setting => $variable) {
+            $value = getenv($variable);
+            if ($value !== false) {
+                $config["db"][$setting] = $value;
+            }
+        }
     }
 
     return $key === null ? $config : ($config[$key] ?? null);
