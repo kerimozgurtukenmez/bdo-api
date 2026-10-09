@@ -10,7 +10,8 @@ item into every material and crafting step needed to make it.
 sudo /opt/lampp/lampp start
 /opt/lampp/bin/mysql -uroot -e "CREATE DATABASE bdo_craft CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
 /opt/lampp/bin/php import/import.php --fresh   # schema + bdocodex data (~10s)
-/opt/lampp/bin/php import/update_prices.php    # market prices (~3 min)
+/opt/lampp/bin/php import/update_prices.php    # market prices (minutes; rerun if blocked)
+/opt/lampp/bin/php import/download_icons.php   # item icons (hours: the source throttles; rerun to resume)
 ```
 
 Settings live in `config/config.php`; put machine-specific overrides in
@@ -39,6 +40,7 @@ the tests are worked out by hand from it.
 | `import/scrape.php` | Downloads items and recipes from bdocodex (4 requests, cached for a day; `--refresh` to force) and rewrites the JSON files in `import/`, printing what changed. Run after a game patch, then `import.php`. |
 | `import/import.php` | Re-imports the JSON files in `import/`. Recipes are replaced, items updated, existing prices kept. |
 | `import/import.php --fresh` | Drops and recreates all tables from `database/schema.sql` first. Needed after schema changes. |
+| `import/download_icons.php` | Downloads the icons of all recipes and recipe items into `public/icons/` (not committed). Skips icons already on disk, stops after 10 failures in a row. Until an icon is downloaded the API links the source. |
 | `import/update_prices.php` | Fetches prices from arsha.io for every recipe item not updated in the last hour. The market API blocks fast clients now and then; failed batches are retried on the next run. `--force` refreshes everything, or pass item ids. |
 
 ## Endpoints

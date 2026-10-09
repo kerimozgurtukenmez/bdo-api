@@ -1,0 +1,103 @@
+/* Design tokens — see the design system in CLAUDE.md. Dark is the default;
+   index.html sets data-theme="light" from the saved or system preference. */
+
+:root {
+  --bg: #0e1116;
+  --surface: #151a21;
+  --surface-2: #1b212a;
+  --surface-3: #232a35;
+  --border: #262e39;
+  --border-strong: #354050;
+
+  --text: #e6e9ee;
+  --text-muted: #9aa3af;
+  --text-faint: #6b7380;
+
+  --accent: #d4b264;
+  --accent-hover: #e0c27a;
+  --on-accent: #1a1408;
+  --accent-soft: rgb(212 178 100 / 0.12);
+
+  --positive: #4fbf8b;
+  --negative: #ef7070;
+  --warning: #e6b450;
+  --warning-soft: rgb(230 180 80 / 0.1);
+
+  --cooking: #e89a5b;
+  --alchemy: #a98bf0;
+  --processing: #5fb3c9;
+
+  --grade-0: #d7dbe0;
+  --grade-1: #7bc96f;
+  --grade-2: #5aa9e6;
+  --grade-3: #e7c25a;
+  --grade-4: #f08a4b;
+  --grade-5: var(--text-muted);
+
+  --shadow-float: 0 12px 32px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.3);
+
+  --font: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 15px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 14px;
+
+  --header-height: 56px;
+  --content-width: 1200px;
+  --ease: cubic-bezier(0.2, 0.7, 0.3, 1);
+
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #f0f2f5;
+  --surface-3: #e6e9ee;
+  --border: #e2e5ea;
+  --border-strong: #cfd4db;
+
+  --text: #1c2128;
+  --text-muted: #5b6472;
+  --text-faint: #8a929e;
+
+  --accent: #a8842a;
+  --accent-hover: #8f6f1f;
+  --on-accent: #ffffff;
+  --accent-soft: rgb(168 132 42 / 0.1);
+
+  --positive: #1f8a5b;
+  --negative: #c94444;
+  --warning: #a8741a;
+  --warning-soft: rgb(168 116 26 / 0.08);
+
+  --cooking: #c26a2a;
+  --alchemy: #7a5bd6;
+  --processing: #2f8aa3;
+
+  --grade-0: #4b5563;
+  --grade-1: #3d8b33;
+  --grade-2: #2c74b8;
+  --grade-3: #a8842a;
+  --grade-4: #c8611f;
+
+  --shadow-float: 0 12px 32px rgb(20 30 45 / 0.14), 0 2px 6px rgb(20 30 45 / 0.08);
+
+  color-scheme: light;
+}

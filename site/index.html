@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Crafting calculator for Black Desert Online: every material, crafting step and cost for cooking, alchemy and processing." />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>BDO Craft</title>
+    <script>
+      // Apply the saved or system theme before the page paints
+      (function () {
+        var saved = null
+        try { saved = localStorage.getItem('theme') } catch (e) {}
+        var light = saved ? saved === 'light' : window.matchMedia('(prefers-color-scheme: light)').matches
+        document.documentElement.dataset.theme = light ? 'light' : 'dark'
+      })()
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
