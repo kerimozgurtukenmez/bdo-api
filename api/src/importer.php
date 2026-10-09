@@ -75,3 +75,84 @@ function main_output_index(array $recipe, array $itemNames): int
     }
     return 0;
 }
+
+// bdocodex lists a cooking or alchemy recipe once with its substitute groups,
+// and again for some fixed ingredient combinations of it. Such a variant is
+// folded into the main recipe of its product (named after it, lowest id): if
+// every ingredient fits the main recipe's slots it is dropped; if one does
+// not, that ingredient becomes a substitute of the remaining slot with its own
+// amount (e.g. Purified Water ×3 for Mineral Water ×6).
+//
+// $recipes: id => ["name", "main" => product item id,
+//                  "slots" => [["item_id", "qty", "alternatives" => [item id => qty]]]]
+// Returns [the recipes to keep, ids of the folded variants].
+function fold_recipe_variants(array $recipes, array $itemNames): array
+{
+    $byProduct = [];
+    foreach ($recipes as $id => $recipe) {
+        $byProduct[$recipe["main"]][] = $id;
+    }
+
+    $folded = [];
+    foreach ($byProduct as $product => $ids) {
+        if (count($ids) < 2) {
+            continue;
+        }
+
+        $rank = fn($id) => [strcasecmp(trim($recipes[$id]["name"]), $itemNames[$product] ?? "") !== 0, $id];
+        usort($ids, fn($a, $b) => $rank($a) <=> $rank($b));
+        $mainId = array_shift($ids);
+
+        foreach ($ids as $id) {
+            $slots = fold_variant($recipes[$mainId]["slots"], $recipes[$id]["slots"]);
+            if ($slots !== null) {
+                $recipes[$mainId]["slots"] = $slots;
+                $folded[] = $id;
+                unset($recipes[$id]);
+            }
+        }
+    }
+
+    return [$recipes, $folded];
+}
+
+// The main recipe's slots with a variant folded in, or null if the other
+// recipe differs in more than one slot (then it is a recipe of its own)
+function fold_variant(array $main, array $variant): ?array
+{
+    if (count($main) !== count($variant)) {
+        return null;
+    }
+
+    $free      = array_keys($main);  // main slots no variant ingredient has used yet
+    $unmatched = [];
+    foreach ($variant as $ingredient) {
+        $hit = null;
+        foreach ($free as $i => $s) {
+            $group = [$main[$s]["item_id"] => $main[$s]["qty"]] + $main[$s]["alternatives"];
+            if (($group[$ingredient["item_id"]] ?? null) === $ingredient["qty"]) {
+                $hit = $i;
+                break;
+            }
+        }
+        if ($hit === null) {
+            $unmatched[] = $ingredient;
+        } else {
+            unset($free[$hit]);
+        }
+    }
+
+    if (count($unmatched) > 1) {
+        return null;
+    }
+    if ($unmatched) {
+        $slot = reset($free);
+        $item = $unmatched[0]["item_id"];
+        // An item the slot already offers keeps the main recipe's amount
+        if ($item !== $main[$slot]["item_id"] && !isset($main[$slot]["alternatives"][$item])) {
+            $main[$slot]["alternatives"][$item] = $unmatched[0]["qty"];
+        }
+    }
+
+    return $main;
+}

@@ -60,6 +60,7 @@ function recipe_slots(array $recipes, bool $withAlternatives = true): array
                 "icon"       => $item["icon"],
                 "grade"      => $item["grade"],
                 "grade_name" => $item["grade_name"],
+                "qty_min"    => $item["qty_min"],  // may differ from the default's amount
                 "price"      => $item["price"],
             ];
         }

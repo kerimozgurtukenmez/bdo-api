@@ -51,7 +51,8 @@ final class TestDatabase
     }
 
     /**
-     * @param list<array{0: int, 1: int, 2?: list<int>}> $ingredients [item id, qty, substitutes]
+     * @param list<array{0: int, 1: int, 2?: list<int|array{0: int, 1: int}>}> $ingredients
+     *        [item id, qty, substitutes]; a substitute is an item id or [item id, its own qty]
      * @param list<array{0: int, 1: int, 2: int}>        $outputs     [item id, min, max]; the first is the main product
      */
     public static function addRecipe(PDO $pdo, string $source, int $id, string $name, string $category,
@@ -68,7 +69,8 @@ final class TestDatabase
             ");
             $insert->execute([$source, $id, $slot, $itemId, $qty, $qty, 0, null]);
             foreach ($alternatives as $alt) {
-                $insert->execute([$source, $id, $slot, $alt, $qty, $qty, 1, $itemId]);
+                [$altId, $altQty] = is_array($alt) ? $alt : [$alt, $qty];
+                $insert->execute([$source, $id, $slot, $altId, $altQty, $altQty, 1, $itemId]);
             }
         }
 

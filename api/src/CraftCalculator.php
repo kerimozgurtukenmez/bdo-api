@@ -251,18 +251,20 @@ final class CraftCalculator
                     "item_id"         => $row["item_id"],
                     "default_item_id" => $row["item_id"],
                     "per_craft"       => $row["qty_min"],
+                    "default_qty"     => $row["qty_min"],
                     "is_key"          => (bool)$row["is_key"],
-                    "alternatives"    => [],
+                    "alternatives"    => [],  // item id => amount per craft
                 ];
             } elseif (isset($slots[$n])) {
-                $slots[$n]["alternatives"][] = $row["item_id"];
+                $slots[$n]["alternatives"][$row["item_id"]] = $row["qty_min"];
             }
         }
 
         foreach ($slots as &$slot) {
             $wanted = $this->substitutes[$slot["default_item_id"]] ?? null;
-            if ($wanted !== null && in_array($wanted, $slot["alternatives"], true)) {
-                $slot["item_id"] = $wanted;
+            if ($wanted !== null && isset($slot["alternatives"][$wanted])) {
+                $slot["item_id"]   = $wanted;
+                $slot["per_craft"] = $slot["alternatives"][$wanted];  // a substitute may take another amount
                 $this->substituted[$slot["default_item_id"]] = true;
             }
         }
@@ -440,9 +442,11 @@ final class CraftCalculator
                 "per_craft"       => $slot["per_craft"],
                 "is_key"          => $slot["is_key"],
                 "default_item_id" => $slot["default_item_id"],
+                // Every item the slot accepts, the default first, with its amount per craft
                 "alternatives"    => array_map(
-                    fn($id) => $this->itemRef($id) + ["price" => item_price($this->items[$id])],
-                    array_values(array_unique(array_merge([$slot["default_item_id"]], $slot["alternatives"])))
+                    fn($id, $qty) => $this->itemRef($id) + ["qty" => $qty, "price" => item_price($this->items[$id])],
+                    array_keys([$slot["default_item_id"] => $slot["default_qty"]] + $slot["alternatives"]),
+                    [$slot["default_item_id"] => $slot["default_qty"]] + $slot["alternatives"]
                 ),
             ];
         }
@@ -517,7 +521,7 @@ final class CraftCalculator
             foreach ($slots as $slot) {
                 $ids[] = $slot["item_id"];
                 $ids[] = $slot["default_item_id"];
-                array_push($ids, ...$slot["alternatives"]);
+                array_push($ids, ...array_keys($slot["alternatives"]));
             }
         }
         return $ids;

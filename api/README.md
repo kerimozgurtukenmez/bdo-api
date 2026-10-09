@@ -80,7 +80,8 @@ Every response is JSON; errors are `{"error": "..."}` with a 4xx/5xx status.
 ## Data notes
 
 - Source data is scraped from bdocodex (`data/*.json`).
-- Each recipe slot has a default ingredient and optional substitutes (`recipe_inputs.slot`).
+- Each recipe slot has a default ingredient and optional substitutes (`recipe_inputs.slot`); a substitute can need a different amount (Purified Water ×3 for Mineral Water ×6).
+- bdocodex lists some cooking and alchemy recipes again for fixed ingredient combinations. The importer folds these variants into the main recipe (named after the product); a variant that differs in more than one ingredient stays a recipe of its own. Processing recipes are not folded.
 - `recipe_outputs.is_main` marks the product a recipe is for. The others are byproducts and rare procs.
 - Recipes without ingredients or products in the scrape (about 230 processing recipes) are skipped.
 - Prices: `item_price()` uses the market base price, or the NPC price for items whose description says a vendor sells them. `item_details.buy_price` alone is not a real price.

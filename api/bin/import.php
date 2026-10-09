@@ -178,8 +178,8 @@ $outputStmt = $pdo->prepare("
 foreach (RECIPE_SOURCES as $source) {
     step("Importing $source recipes...");
 
-    $imported = 0;
-    $skipped  = [];
+    $recipes   = [];  // id => recipe with its ingredient slots
+    $skipped   = [];
     $ungrouped = 0;
 
     foreach (readJson("recipes_$source.json") as $recipe) {
@@ -210,6 +210,31 @@ foreach (RECIPE_SOURCES as $source) {
             $warnings[] = "$label: ingredient_ids do not match ingredients, alternatives ignored";
         }
 
+        // Substitutes start with the default ingredient's amount; a folded
+        // variant may add one with its own amount
+        $recipe["slots"] = [];
+        foreach ($recipe["ingredients"] as $slot => $ing) {
+            $qty = $ing["qty_min"] ?? 1;
+            $recipe["slots"][$slot] = [
+                "item_id"      => $ing["item_id"],
+                "qty"          => $qty,
+                "is_key"       => !empty($ing["is_key"]),
+                "alternatives" => array_fill_keys($alternatives[$slot], $qty),
+            ];
+        }
+        $recipe["main_index"] = main_output_index($recipe, $itemNames);
+        $recipe["main"]       = $recipe["output"][$recipe["main_index"]]["item_id"];
+        $recipes[$recipe["id"]] = $recipe;
+    }
+
+    // Processing recipes with other ingredients are other processes (melting
+    // a sword is not a variant of melting ore), so only these are folded
+    $folded = [];
+    if ($source !== "processing") {
+        [$recipes, $folded] = fold_recipe_variants($recipes, $itemNames);
+    }
+
+    foreach ($recipes as $recipe) {
         $recipeStmt->execute([
             $source,
             $recipe["id"],
@@ -225,37 +250,24 @@ foreach (RECIPE_SOURCES as $source) {
             isset($recipe["weight"]) ? round($recipe["weight"], 2) : null,
         ]);
 
-        foreach ($recipe["ingredients"] as $slot => $ing) {
-            $qty = $ing["qty_min"] ?? 1;
-            $inputStmt->execute([
-                $source, $recipe["id"], $slot, $ing["item_id"],
-                $qty, $ing["qty_max"] ?? $qty,
-                empty($ing["is_key"]) ? 0 : 1, 0, null,
-            ]);
-
-            // Substitutes are used in the same amount as the default ingredient
-            foreach ($alternatives[$slot] as $altId) {
-                $inputStmt->execute([
-                    $source, $recipe["id"], $slot, $altId,
-                    $qty, $ing["qty_max"] ?? $qty,
-                    0, 1, $ing["item_id"],
-                ]);
+        foreach ($recipe["slots"] as $slot => $ing) {
+            $inputStmt->execute([$source, $recipe["id"], $slot, $ing["item_id"], $ing["qty"], $ing["qty"], $ing["is_key"] ? 1 : 0, 0, null]);
+            foreach ($ing["alternatives"] as $altId => $qty) {
+                $inputStmt->execute([$source, $recipe["id"], $slot, $altId, $qty, $qty, 0, 1, $ing["item_id"]]);
             }
         }
 
-        $main = main_output_index($recipe, $itemNames);
         foreach ($recipe["output"] as $i => $out) {
             $outputStmt->execute([
                 $source, $recipe["id"], $out["item_id"],
                 $out["qty_min"] ?? 1, $out["qty_max"] ?? 1,
-                $i === $main ? 1 : 0,
+                $i === $recipe["main_index"] ? 1 : 0,
             ]);
         }
-
-        $imported++;
     }
 
-    step("  $imported imported, " . count($skipped) . " skipped (no ingredients/products or unknown items)"
+    step("  " . count($recipes) . " imported, " . count($folded) . " variants folded into their main recipe, "
+        . count($skipped) . " skipped (no ingredients/products or unknown items)"
         . ($ungrouped ? ", $ungrouped without alternatives" : ""));
 }
 

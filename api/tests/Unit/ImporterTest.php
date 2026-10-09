@@ -64,6 +64,82 @@ final class ImporterTest extends TestCase
         $this->assertSame(0, main_output_index($recipe("Trace of Savagery"), $names));  // no match: first output
     }
 
+    // Beer on bdocodex: the main recipe and two fixed combinations of it
+    private const MINERAL_WATER = 9059, PURIFIED_WATER = 6656, CORN = 7006, LEAVENING = 9066, SUGAR = 9002, RAW_SUGAR = 9003;
+
+    private static function slot(int $itemId, int $qty, array $alternatives = []): array
+    {
+        return ["item_id" => $itemId, "qty" => $qty, "alternatives" => $alternatives];
+    }
+
+    private static function beerRecipes(array ...$variants): array
+    {
+        $recipes = [122 => ["name" => "Beer", "main" => 9213, "slots" => [
+            self::slot(self::MINERAL_WATER, 6),
+            self::slot(self::CORN, 5),
+            self::slot(self::LEAVENING, 2),
+            self::slot(self::SUGAR, 1, [self::RAW_SUGAR => 1]),
+        ]]];
+        foreach ($variants as $i => $slots) {
+            $recipes[200 + $i] = ["name" => "Beer", "main" => 9213, "slots" => $slots];
+        }
+        return $recipes;
+    }
+
+    public function testVariantThatFitsTheMainRecipeIsDropped(): void
+    {
+        $recipes = self::beerRecipes([
+            self::slot(self::CORN, 5), self::slot(self::MINERAL_WATER, 6),
+            self::slot(self::RAW_SUGAR, 1), self::slot(self::LEAVENING, 2),
+        ]);
+
+        [$kept, $folded] = fold_recipe_variants($recipes, [9213 => "Beer"]);
+
+        $this->assertSame([200], $folded);
+        $this->assertSame($recipes[122], $kept[122]);
+    }
+
+    public function testVariantWithOneOtherIngredientAddsItAsSubstitute(): void
+    {
+        $recipes = self::beerRecipes([
+            self::slot(self::PURIFIED_WATER, 3), self::slot(self::CORN, 5),
+            self::slot(self::LEAVENING, 2), self::slot(self::SUGAR, 1),
+        ]);
+
+        [$kept, $folded] = fold_recipe_variants($recipes, [9213 => "Beer"]);
+
+        $this->assertSame([200], $folded);
+        $this->assertSame([122], array_keys($kept));
+        $this->assertSame([self::PURIFIED_WATER => 3], $kept[122]["slots"][0]["alternatives"]);  // with its own amount
+    }
+
+    public function testRecipesThatDifferMoreAreKept(): void
+    {
+        $recipes = self::beerRecipes(
+            [self::slot(self::PURIFIED_WATER, 3), self::slot(self::CORN, 9), self::slot(self::LEAVENING, 2), self::slot(self::SUGAR, 1)],
+            [self::slot(self::MINERAL_WATER, 6), self::slot(self::CORN, 5), self::slot(self::LEAVENING, 2)],  // fewer slots
+        );
+
+        [$kept, $folded] = fold_recipe_variants($recipes, [9213 => "Beer"]);
+
+        $this->assertSame([], $folded);
+        $this->assertSame([122, 200, 201], array_keys($kept));
+    }
+
+    public function testMainRecipeIsTheOneNamedAfterTheProduct(): void
+    {
+        $recipes = self::beerRecipes();
+        $recipes[50] = ["name" => "Beer (Purified Water)", "main" => 9213, "slots" => [
+            self::slot(self::PURIFIED_WATER, 3), self::slot(self::CORN, 5),
+            self::slot(self::LEAVENING, 2), self::slot(self::SUGAR, 1),
+        ]];
+
+        [$kept, $folded] = fold_recipe_variants($recipes, [9213 => "Beer"]);
+
+        $this->assertSame([50], $folded);  // lower id, but not named "Beer"
+        $this->assertSame([122], array_keys($kept));
+    }
+
     public function testVendorItemsAreRecognisedFromTheirDescription(): void
     {
         $this->assertTrue(is_vendor_sold("An ingredient used in Cooking. It can be bought from a Food Vendor or Innkeeper."));

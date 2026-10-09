@@ -114,7 +114,7 @@ function pick(key) {
           @change="actions.substitute(node.slot.default_item_id, Number($event.target.value))"
         >
           <option v-for="alt in substitutes" :key="alt.id" :value="alt.id">
-            {{ alt.name }}{{ alt.price ? ` — ${silver(alt.price.unit)}` : '' }}
+            {{ alt.name }} × {{ alt.qty }}{{ alt.price ? ` — ${silver(alt.price.unit)} each` : '' }}
           </option>
         </select>
       </label>
