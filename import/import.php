@@ -1,292 +1,334 @@
 <?php
-//no time limit
+// ─────────────────────────────────────────────────────────────────────────────
+// Imports the bdocodex JSON dumps in this folder into the database.
+//
+//   php import/import.php           update items/details, replace all recipes
+//   php import/import.php --fresh   drop and recreate every table first
+//
+// Market prices from raw_item_prices.json are only used for items that have
+// no price yet; run update_prices.php to refresh prices.
+// ─────────────────────────────────────────────────────────────────────────────
+
+declare(strict_types=1);
+
+if (PHP_SAPI !== "cli") {
+    http_response_code(403);
+    exit("Run this script from the command line.\n");
+}
+
+require __DIR__ . "/../src/bootstrap.php";
+
 set_time_limit(0);
+ini_set("memory_limit", "2G");
 
-//include connection folder
-require_once "../config/database.php";
-$pdo = connect();
+$fresh = in_array("--fresh", $argv, true);
+$pdo   = db();
+$start = microtime(true);
+$warnings = [];
 
-//print it.
-ob_implicit_flush(true);
-
-echo "=== BDO Import Starting ===\n\n";
-
-// ─────────────────────────────────────────────────────
-// Function: read JSON files and turn it to php format
-// ─────────────────────────────────────────────────────
-function readJson($filename) {
+function readJson(string $filename): array
+{
     $path = __DIR__ . "/" . $filename;
-
-    if(!file_exists($path)) {
-        die("ERROR: $filename not found!\n");
+    if (!is_file($path)) {
+        throw new RuntimeException("$filename not found");
     }
 
-    $content = file_get_contents($path);
-    $data = json_decode($content, true);
-
-    if ($data === null) {
-        die("ERROR: $filename is not valid JSON!\n");
+    $data = json_decode(file_get_contents($path), true);
+    if (!is_array($data)) {
+        throw new RuntimeException("$filename is not valid JSON: " . json_last_error_msg());
     }
 
     return $data;
 }
 
-// ───────────────────────────────────
-// STEP 1: items.json -> items table
-// ───────────────────────────────────
-echo "Importing items...\n";
+function step(string $message): void
+{
+    echo $message, "\n";
+}
 
-$items = readJson("items.json");
+echo "=== BDO Import ===\n\n";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Schema
+// ─────────────────────────────────────────────────────────────────────────────
+if ($fresh) {
+    step("Dropping tables...");
+    foreach (["recipe_outputs", "recipe_inputs", "recipes", "item_prices", "item_details", "items"] as $table) {
+        $pdo->exec("DROP TABLE IF EXISTS `$table`");
+    }
+}
+
+step("Applying database/schema.sql...");
+$schema = preg_replace('/^\s*--.*$/m', "", file_get_contents(__DIR__ . "/../database/schema.sql"));
+foreach (array_filter(array_map("trim", explode(";", $schema))) as $statement) {
+    $pdo->exec($statement);
+}
+
+$pdo->beginTransaction();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 1: items.json → items
+// ─────────────────────────────────────────────────────────────────────────────
+step("Importing items...");
 
 $stmt = $pdo->prepare("
     INSERT INTO items (id, name, grade, grade_name, icon, link)
     VALUES (?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
-        name       = VALUES(name),
-        grade      = VALUES(grade),
-        grade_name = VALUES(grade_name),
-        icon       = VALUES(icon),
-        link       = VALUES(link)
+        name = VALUES(name), grade = VALUES(grade), grade_name = VALUES(grade_name),
+        icon = VALUES(icon), link = VALUES(link)
 ");
 
-$count = 0;
-foreach ($items as $item) {
+$itemNames = [];  // id => name, used to validate references below
+foreach (readJson("items.json") as $item) {
     $stmt->execute([
         $item["id"],
-        $item["name"],
-        $item["grade"],
-        $item["grade_name"],
-        $item["icon"],
-        $item["link"] ?? null
+        trim($item["name"]),
+        $item["grade"] ?? 0,
+        $item["grade_name"] ?? null,
+        $item["icon"] ?? null,
+        $item["link"] ?? null,
     ]);
-    $count++;
+    $itemNames[$item["id"]] = trim($item["name"]);
 }
+step("  " . count($itemNames) . " items");
 
-echo " Done: $count items imported.\n\n";
-
-// ───────────────────────────────────────────────────────
-// STEP 2: item_descriptions.json -> item_details table
-// ───────────────────────────────────────────────────────
-echo "Importing item details...\n";
-
-$descriptions = readJson("item_descriptions.json");
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 2: item_descriptions.json → item_details
+// ─────────────────────────────────────────────────────────────────────────────
+step("Importing item details...");
 
 $stmt = $pdo->prepare("
-    INSERT INTO item_details (item_id, name_kr, category, weight, description, bound_on_obtain, personal_trade, buy_price, sell_price, warehouse_capacity)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO item_details (item_id, name_kr, category, weight, description, bound_on_obtain,
+                              personal_trade, buy_price, sell_price, vendor_sold, warehouse_capacity)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
-        name_kr            = VALUES(name_kr),
-        category           = VALUES(category),
-        weight             = VALUES(weight),
-        description        = VALUES(description),
-        bound_on_obtain    = VALUES(bound_on_obtain),
-        personal_trade     = VALUES(personal_trade),
-        buy_price          = VALUES(buy_price),
-        sell_price         = VALUES(sell_price),
+        name_kr = VALUES(name_kr), category = VALUES(category), weight = VALUES(weight),
+        description = VALUES(description), bound_on_obtain = VALUES(bound_on_obtain),
+        personal_trade = VALUES(personal_trade), buy_price = VALUES(buy_price),
+        sell_price = VALUES(sell_price), vendor_sold = VALUES(vendor_sold),
         warehouse_capacity = VALUES(warehouse_capacity)
 ");
 
-$count = 0;
-foreach ($descriptions as $id => $item) {
-    $check = $pdo->prepare("SELECT id FROM items WHERE id = ?");
-    $check->execute([$item["id"]]);
+// The game data gives every item a buy price, but only items whose description
+// says a vendor sells them can actually be bought for it.
+// ("purchased from" is left out: it also matches "made with X purchased from a Shop")
+$vendorPattern = '/\b(can|may) be (bought|purchased)\b|\bpurchas(e|able) (it )?(from|at)\b|\bsold by\b/i';
 
-    if ($check->fetch()) {
-        $stmt->execute([
-            $item["id"],
-            $item["name_kr"]                  ?? null,
-            $item["category"]                 ?? null,
-            $item["weight"]                   ?? null,
-            $item["description"]              ?? null,
-            $item["bound_on_obtain"]          ? 1 : 0,
-            $item["personal_trade_available"] ? 1 : 0,
-            $item["buy_price"]                ?? 0,
-            $item["sell_price"]               ?? 0,
-            $item["warehouse_capacity"]       ?? null
-        ]);
-        $count++;
+$count = $vendors = 0;
+foreach (readJson("item_descriptions.json") as $item) {
+    if (!isset($itemNames[$item["id"]])) {
+        $warnings[] = "item_details: unknown item {$item['id']}";
+        continue;
     }
+
+    $vendorSold = preg_match($vendorPattern, $item["description"] ?? "") ? 1 : 0;
+    $stmt->execute([
+        $item["id"],
+        $item["name_kr"] ?? null,
+        $item["category"] ?? null,
+        $item["weight"] ?? null,
+        $item["description"] ?? null,
+        empty($item["bound_on_obtain"]) ? 0 : 1,
+        empty($item["personal_trade_available"]) ? 0 : 1,
+        $item["buy_price"] ?? 0,
+        $item["sell_price"] ?? 0,
+        $vendorSold,
+        $item["warehouse_capacity"] ?? null,
+    ]);
+    $count++;
+    $vendors += $vendorSold;
 }
+step("  $count item details ($vendors sold by NPC vendors)");
 
-echo " Done: $count item details imported.\n\n";
-
-// ─────────────────────────────────────────────
-// STEP 3: raw_item_prices.json -> item_prices table
-// ─────────────────────────────────────────────
-echo "Importing item prices...\n";
-
-$prices = readJson("raw_item_prices.json");
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 3: raw_item_prices.json → item_prices (only where no price exists yet)
+// ─────────────────────────────────────────────────────────────────────────────
+step("Importing seed prices...");
 
 $stmt = $pdo->prepare("
-    INSERT INTO item_prices (item_id, base_price, current_stock, total_trades, price_min, price_max, last_sold_price, last_sold_time)
+    INSERT IGNORE INTO item_prices (item_id, base_price, current_stock, total_trades, price_min,
+                                    price_max, last_sold_price, last_sold_time)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ON DUPLICATE KEY UPDATE
-        base_price      = VALUES(base_price),
-        current_stock   = VALUES(current_stock),
-        total_trades    = VALUES(total_trades),
-        price_min       = VALUES(price_min),
-        price_max       = VALUES(price_max),
-        last_sold_price = VALUES(last_sold_price),
-        last_sold_time  = VALUES(last_sold_time),
-        updated_at      = CURRENT_TIMESTAMP
 ");
 
 $count = 0;
-foreach ($prices as $id => $item) {
-    $check = $pdo->prepare("SELECT id FROM items WHERE id = ?");
-    $check->execute([$item["id"]]);
-
-    if ($check->fetch()) {
-        $stmt->execute([
-            $item["id"],
-            $item["basePrice"]     ?? 0,
-            $item["currentStock"]  ?? 0,
-            $item["totalTrades"]   ?? 0,
-            $item["priceMin"]      ?? 0,  // $item düzeltildi, $items değil
-            $item["priceMax"]      ?? 0,  // $item düzeltildi, $items değil
-            $item["lastSoldPrice"] ?? 0,
-            $item["lastSoldTime"]  ?? 0
-        ]);
-        $count++;
+foreach (readJson("raw_item_prices.json") as $item) {
+    if (!isset($itemNames[$item["id"]])) {
+        continue;
     }
+    $stmt->execute([
+        $item["id"],
+        $item["basePrice"] ?? 0,
+        $item["currentStock"] ?? 0,
+        $item["totalTrades"] ?? 0,
+        $item["priceMin"] ?? 0,
+        $item["priceMax"] ?? 0,
+        $item["lastSoldPrice"] ?? 0,
+        $item["lastSoldTime"] ?? 0,
+    ]);
+    $count += $stmt->rowCount();
+}
+step("  $count new prices");
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 4: recipes_*.json → recipes, recipe_inputs, recipe_outputs
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ingredient_ids lists the slots in recipe order, each slot as its default
+// ingredient followed by the items that may replace it:
+//   [default0, alt, alt, default1, default2, alt, ...]
+// Returns slot => list of alternative item ids, or null if the list does not
+// follow that layout.
+function groupAlternatives(array $ingredients, array $ingredientIds): ?array
+{
+    $alternatives = array_fill(0, count($ingredients), []);
+    $next = 0;        // next default we expect to see
+    $slot = null;     // slot the current alternatives belong to
+
+    foreach ($ingredientIds as $id) {
+        if ($next < count($ingredients) && $id === $ingredients[$next]["item_id"]) {
+            $slot = $next++;
+            continue;
+        }
+        if ($slot === null) {
+            return null;
+        }
+        if ($id !== $ingredients[$slot]["item_id"] && !in_array($id, $alternatives[$slot], true)) {
+            $alternatives[$slot][] = $id;
+        }
+    }
+
+    return $next === count($ingredients) ? $alternatives : null;
 }
 
-echo " Done: $count prices imported.\n\n";
+// The product the recipe is named after; otherwise the first output.
+function mainOutputIndex(array $recipe, array $itemNames): int
+{
+    foreach ($recipe["output"] as $i => $out) {
+        if (strcasecmp($itemNames[$out["item_id"]] ?? "", trim($recipe["name"])) === 0) {
+            return $i;
+        }
+    }
+    return 0;
+}
 
-// ─────────────────────────────────────────────
-// STEP 4: import recipes
-// ─────────────────────────────────────────────
-function importRecipes($pdo, $filename, $source) {
-    echo "Importing recipes from $filename...\n";
+$pdo->exec("DELETE FROM recipes");  // inputs/outputs are removed by ON DELETE CASCADE
 
-    $recipes = readJson($filename);
+$recipeStmt = $pdo->prepare("
+    INSERT INTO recipes (source, id, name, category, grade, grade_name, icon, link,
+                         skill_level, skill_sort, exp, ingredients_weight)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+");
+$inputStmt = $pdo->prepare("
+    INSERT INTO recipe_inputs (recipe_source, recipe_id, slot, item_id, qty_min, qty_max,
+                               is_key, is_alternative, slot_item_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+");
+$outputStmt = $pdo->prepare("
+    INSERT INTO recipe_outputs (recipe_source, recipe_id, item_id, qty_min, qty_max, is_main)
+    VALUES (?, ?, ?, ?, ?, ?)
+");
 
-    $recipeStmt = $pdo->prepare("
-        INSERT INTO recipes (id, source, name, category, grade, grade_name, icon, skill_level, skill_sort, exp, proc_rate, proc_amount)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            source      = VALUES(source),
-            name        = VALUES(name),
-            category    = VALUES(category),
-            skill_level = VALUES(skill_level),
-            exp         = VALUES(exp),
-            proc_rate   = VALUES(proc_rate),
-            proc_amount = VALUES(proc_amount)
-    ");
+foreach (RECIPE_SOURCES as $source) {
+    step("Importing $source recipes...");
 
-    // is_alternative: bu malzeme alternatif mi? (0=default, 1=alternatif)
-    // slot_item_id:   alternatif ise, hangi default malzemenin yerine geçiyor?
-    $inputStmt = $pdo->prepare("
-        INSERT INTO recipe_inputs (recipe_id, recipe_source, item_id, qty_min, qty_max, is_key, is_alternative, slot_item_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    ");
+    $imported = 0;
+    $skipped  = [];
+    $ungrouped = 0;
 
-    $outputStmt = $pdo->prepare("
-        INSERT INTO recipe_outputs (recipe_id, recipe_source, item_id, qty_min, qty_max)
-        VALUES (?, ?, ?, ?, ?)
-    ");
+    foreach (readJson("recipes_$source.json") as $recipe) {
+        $label = "$source #{$recipe['id']} {$recipe['name']}";
 
-    $count = 0;
-    foreach ($recipes as $recipe) {
+        // Broken scrapes: a recipe needs ingredients and products to be usable
+        if (empty($recipe["ingredients"]) || empty($recipe["output"])) {
+            $skipped[] = $label;
+            continue;
+        }
+
+        $refs = array_merge(
+            array_column($recipe["ingredients"], "item_id"),
+            array_column($recipe["output"], "item_id"),
+            $recipe["ingredient_ids"] ?? []
+        );
+        $unknown = array_filter($refs, fn($id) => !isset($itemNames[$id]));
+        if ($unknown) {
+            $warnings[] = "$label: unknown item(s) " . implode(", ", array_unique($unknown)) . " — skipped";
+            $skipped[] = $label;
+            continue;
+        }
+
+        $alternatives = groupAlternatives($recipe["ingredients"], $recipe["ingredient_ids"] ?? []);
+        if ($alternatives === null) {
+            $alternatives = array_fill(0, count($recipe["ingredients"]), []);
+            $ungrouped++;
+            $warnings[] = "$label: ingredient_ids do not match ingredients, alternatives ignored";
+        }
+
+        // Scraped "proc_rate" is the total weight of the ingredients and
+        // "proc_amount" duplicates the processing category, so it is not stored.
         $recipeStmt->execute([
-            $recipe["id"],
             $source,
-            $recipe["name"],
+            $recipe["id"],
+            trim($recipe["name"]),
             $recipe["category"],
-            $recipe["grade"]       ?? 0,
-            $recipe["grade_name"]  ?? "White",
-            $recipe["icon"]        ?? null,
+            $recipe["grade"] ?? 0,
+            $recipe["grade_name"] ?? null,
+            $recipe["icon"] ?? null,
+            $recipe["link"] ?? null,
             $recipe["skill_level"] ?? null,
-            $recipe["skill_sort"]  ?? 0,
-            $recipe["exp"]         ?? 0,
-            $recipe["proc_rate"]   ?? 1.0,
-            $recipe["proc_amount"] ?? 1
+            $recipe["skill_sort"] ?? 0,
+            $recipe["exp"] ?? null,
+            isset($recipe["proc_rate"]) ? round($recipe["proc_rate"], 2) : null,
         ]);
 
-        // Eski input/output'ları temizle
-        $pdo->prepare("DELETE FROM recipe_inputs  WHERE recipe_id = ? AND recipe_source = ?")->execute([$recipe["id"], $source]);
-        $pdo->prepare("DELETE FROM recipe_outputs WHERE recipe_id = ? AND recipe_source = ?")->execute([$recipe["id"], $source]);
+        foreach ($recipe["ingredients"] as $slot => $ing) {
+            $qty = $ing["qty_min"] ?? 1;
+            $inputStmt->execute([
+                $source, $recipe["id"], $slot, $ing["item_id"],
+                $qty, $ing["qty_max"] ?? $qty,
+                empty($ing["is_key"]) ? 0 : 1, 0, null,
+            ]);
 
-        // ── Alternatifleri bul ──────────────────────────────────────────────
-        // ingredient_ids sıralamasından hangi alternatifin hangi slota ait
-        // olduğunu ve qty'sini çıkarıyoruz
-        $default_ids  = array_column($recipe["ingredients"], "item_id");
-        $alternatives = []; // [ ['item_id'=>x, 'qty'=>y, 'slot_item_id'=>z], ... ]
-
-        if (!empty($recipe["ingredient_ids"])) {
-            $current_slot = null;
-            $current_qty  = 1;
-
-            foreach ($recipe["ingredient_ids"] as $iid) {
-                if (in_array($iid, $default_ids)) {
-                    // Default malzeme — yeni slot başlıyor
-                    $ing = array_values(array_filter(
-                        $recipe["ingredients"],
-                        fn($i) => $i["item_id"] === $iid
-                    ))[0];
-                    $current_slot = $iid;
-                    $current_qty  = $ing["qty_min"] ?? 1;
-                } else {
-                    // Alternatif malzeme — mevcut slota bağla
-                    if ($current_slot !== null) {
-                        $alternatives[] = [
-                            "item_id"      => $iid,
-                            "qty"          => $current_qty,
-                            "slot_item_id" => $current_slot
-                        ];
-                    }
-                }
+            // Substitutes are used in the same amount as the default ingredient
+            foreach ($alternatives[$slot] as $altId) {
+                $inputStmt->execute([
+                    $source, $recipe["id"], $slot, $altId,
+                    $qty, $ing["qty_max"] ?? $qty,
+                    0, 1, $ing["item_id"],
+                ]);
             }
         }
 
-        // ── Default malzemeleri yaz ─────────────────────────────────────────
-        foreach ($recipe["ingredients"] as $ing) {
-            $inputStmt->execute([
-                $recipe["id"],
-                $source,
-                $ing["item_id"],
-                $ing["qty_min"] ?? 1,
-                $ing["qty_max"] ?? 1,
-                isset($ing["is_key"]) ? 1 : 0,
-                0,    // is_alternative = false
-                null  // slot_item_id = null (default malzeme)
-            ]);
-        }
-
-        // ── Alternatif malzemeleri yaz ──────────────────────────────────────
-        foreach ($alternatives as $alt) {
-            $inputStmt->execute([
-                $recipe["id"],
-                $source,
-                $alt["item_id"],
-                $alt["qty"],
-                $alt["qty"],
-                0,                   // is_key = false
-                1,                   // is_alternative = true
-                $alt["slot_item_id"] // hangi default malzemenin yerine geçiyor
-            ]);
-        }
-
-        // ── Çıktıları yaz ───────────────────────────────────────────────────
-        foreach ($recipe["output"] as $out) {
+        $main = mainOutputIndex($recipe, $itemNames);
+        foreach ($recipe["output"] as $i => $out) {
             $outputStmt->execute([
-                $recipe["id"],
-                $source,
-                $out["item_id"],
-                $out["qty_min"] ?? 1,
-                $out["qty_max"] ?? 1
+                $source, $recipe["id"], $out["item_id"],
+                $out["qty_min"] ?? 1, $out["qty_max"] ?? 1,
+                $i === $main ? 1 : 0,
             ]);
         }
 
-        $count++;
+        $imported++;
     }
 
-    echo "  Done: $count recipes imported.\n\n";
+    step("  $imported imported, " . count($skipped) . " skipped (no ingredients/products or unknown items)"
+        . ($ungrouped ? ", $ungrouped without alternatives" : ""));
 }
 
-importRecipes($pdo, "recipes_cooking.json",    "cooking");
-importRecipes($pdo, "recipes_alchemy.json",    "alchemy");
-importRecipes($pdo, "recipes_processing.json", "processing");
+$pdo->commit();
 
-echo "=== Import Complete! ===\n";
-?>
+// ─────────────────────────────────────────────────────────────────────────────
+// Report
+// ─────────────────────────────────────────────────────────────────────────────
+if ($warnings) {
+    echo "\nWarnings (" . count($warnings) . "):\n";
+    foreach (array_slice($warnings, 0, 20) as $w) {
+        echo "  - $w\n";
+    }
+    if (count($warnings) > 20) {
+        echo "  ... and " . (count($warnings) - 20) . " more\n";
+    }
+}
+
+printf("\n=== Import complete in %.1fs ===\n", microtime(true) - $start);
