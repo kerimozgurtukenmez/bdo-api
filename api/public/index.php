@@ -28,6 +28,7 @@ json_out([
             "?item_id=9003&grouped=1"       => "Every recipe that makes an item, grouped by life skill and category",
             "?source=processing&category=Heating&skill=Beginner&search=iron" => "List recipes; with_ingredients=1 adds default ingredients",
             "?ingredient_id=9065"           => "Recipes that use an item",
+            "?categories=1"                 => "Recipe categories per life skill, with counts",
         ],
         "craft.php"   => [
             "?item_id=9003&qty=100"         => "Full crafting plan: materials to buy, steps, cost, recipe tree",

@@ -1,6 +1,7 @@
 <?php
 // GET recipes.php?source=cooking&id=106      one recipe with ingredient slots and products
 // GET recipes.php?item_id=9003&grouped=1     recipes that make an item, grouped by source/category
+// GET recipes.php?categories=1               recipe categories per source, with counts
 // GET recipes.php                            list, filters:
 //       source=cooking|alchemy|processing  category=Heating  skill=Apprentice
 //       search=sauce  item_id=9003 (makes it, also as byproduct)  ingredient_id=9065 (uses it)
@@ -18,8 +19,28 @@ $source       = param_enum("source", RECIPE_SOURCES);
 $itemId       = param_int("item_id");
 $ingredientId = param_int("ingredient_id");
 
+// item_id: the main product, what the calculator should be opened with
 const RECIPE_COLUMNS = "r.source, r.id, r.name, r.category, r.grade, r.grade_name, r.icon, r.link,
-                        r.skill_level, r.exp, r.ingredients_weight";
+                        r.skill_level, r.exp, r.ingredients_weight,
+                        (SELECT ro.item_id FROM recipe_outputs ro
+                         WHERE ro.recipe_source = r.source AND ro.recipe_id = r.id AND ro.is_main = 1
+                         LIMIT 1) AS item_id";
+
+// ── Categories per source, for filters ───────────────────────────────────────
+if (param_bool("categories")) {
+    $rows = query("
+        SELECT source, category, COUNT(*) AS recipes
+        FROM recipes
+        GROUP BY source, category
+        ORDER BY source, recipes DESC
+    ")->fetchAll();
+
+    $result = array_fill_keys(RECIPE_SOURCES, []);
+    foreach ($rows as $row) {
+        $result[$row["source"]][] = ["category" => $row["category"], "recipes" => $row["recipes"]];
+    }
+    json_out($result);
+}
 
 // ── Single recipe ────────────────────────────────────────────────────────────
 if ($id !== null) {
