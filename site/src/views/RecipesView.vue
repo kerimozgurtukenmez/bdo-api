@@ -53,7 +53,7 @@ const subTabs = computed(() =>
 )
 // The real category name for the slug in the URL
 const category = computed(() => subTabs.value.find((tab) => tab.slug === categorySlug.value)?.category ?? '')
-const sourceTotal = computed(() => (categories.value[source.value] ?? []).reduce((sum, c) => sum + c.recipes, 0))
+const sourceTotal = computed(() => (categories.value[source.value] ?? []).reduce((sum, c) => sum + c.products, 0))
 
 // ── Recipes ────────────────────────────────────────────────────────────
 const result = ref(null)
@@ -83,6 +83,8 @@ async function load() {
         page: filters.value.page,
         limit: PER_PAGE,
         with_ingredients: 1,
+        // One row per product; its other recipes are on the item page
+        per_product: 1,
       },
       current.signal,
     )
@@ -137,7 +139,7 @@ onBeforeUnmount(() => {
         class="sub-tab"
         :class="{ active: tab.slug === categorySlug }"
       >
-        {{ tab.category }} <span class="count num">{{ number(tab.recipes) }}</span>
+        {{ tab.category }} <span class="count num">{{ number(tab.products) }}</span>
       </RouterLink>
     </nav>
 
@@ -147,7 +149,7 @@ onBeforeUnmount(() => {
         <option value="">All levels</option>
         <option v-for="tier in SKILL_TIERS" :key="tier" :value="tier">{{ tier }}</option>
       </select>
-      <span v-if="result" class="faint small total">{{ number(result.total) }} recipes</span>
+      <span v-if="result" class="faint small total">{{ number(result.total) }} products</span>
     </div>
 
     <ErrorState v-if="error" :error="error" @retry="load" />

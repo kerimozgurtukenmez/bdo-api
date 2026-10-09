@@ -227,7 +227,7 @@ watch(usedPage, () => item.value && loadUsedIn())
     </div>
 
     <!-- How to make -->
-    <section v-if="craftable" class="card">
+    <section v-if="craftable" id="how-to-make" class="card">
       <div class="card-header">
         <h2>How to make</h2>
         <span class="faint small">{{ plural(item.made_by.length, 'recipe') }}</span>

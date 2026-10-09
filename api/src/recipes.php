@@ -32,7 +32,7 @@ function recipe_slots(array $recipes, bool $withAlternatives = true): array
     [$in, $params] = recipes_in($recipes, "ri.recipe_source", "ri.recipe_id");
     $rows = query("
         SELECT ri.recipe_source, ri.recipe_id, ri.slot, ri.item_id, ri.qty_min, ri.qty_max,
-               ri.is_key, ri.is_alternative,
+               ri.is_key, ri.is_alternative, ri.qty_estimated,
                i.name, i.icon, i.grade, i.grade_name, " . PRICE_COLUMNS . "
         FROM recipe_inputs ri
         JOIN items i             ON i.id      = ri.item_id
@@ -48,7 +48,7 @@ function recipe_slots(array $recipes, bool $withAlternatives = true): array
         $slot = $row["slot"];
         $item = with_price($row);
         $item["icon"] = icon_url($item["icon"]);
-        unset($item["recipe_source"], $item["recipe_id"], $item["slot"], $item["is_alternative"]);
+        unset($item["recipe_source"], $item["recipe_id"], $item["slot"], $item["is_alternative"], $item["qty_estimated"]);
 
         if (!$row["is_alternative"]) {
             $item["is_key"] = (bool)$item["is_key"];
@@ -61,6 +61,7 @@ function recipe_slots(array $recipes, bool $withAlternatives = true): array
                 "grade"      => $item["grade"],
                 "grade_name" => $item["grade_name"],
                 "qty_min"    => $item["qty_min"],  // may differ from the default's amount
+                "estimated"  => (bool)$row["qty_estimated"],  // amount from the grade rule
                 "price"      => $item["price"],
             ];
         }

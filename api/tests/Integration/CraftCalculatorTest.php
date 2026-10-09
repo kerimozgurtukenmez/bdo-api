@@ -58,7 +58,7 @@ final class CraftCalculatorTest extends TestCase
         TestDatabase::addRecipe($pdo, "processing", 30, "Crystal", "Heating", [[self::SHARD, 2]], [[self::CRYSTAL, 1, 1]]);
         TestDatabase::addRecipe($pdo, "processing", 31, "Shard", "Grinding", [[self::CRYSTAL, 1], [self::GEM, 3]], [[self::SHARD, 5, 5]]);
         TestDatabase::addRecipe($pdo, "processing", 15, "Sauce", "Simple Cooking", [[self::APPLE, 1]], [[self::SAUCE, 1, 1]]);
-        TestDatabase::addRecipe($pdo, "cooking", 25, "Sauce", "Cooking", [[self::APPLE, 2, [[self::STRAWBERRY, 4]]]], [[self::SAUCE, 1, 1]]);
+        TestDatabase::addRecipe($pdo, "cooking", 25, "Sauce", "Cooking", [[self::APPLE, 2, [[self::STRAWBERRY, 4, true]]]], [[self::SAUCE, 1, 1]]);
         TestDatabase::addRecipe($pdo, "processing", 32, "Egg", "Simple Cooking", [[self::EGG, 2]], [[self::EGG, 3, 3]]);
 
         // Crumb is Bread's rare product
@@ -216,7 +216,7 @@ final class CraftCalculatorTest extends TestCase
         $this->assertSame(["qty" => 12, "total" => 1200, "reason" => "no_recipe"], $this->materials($plan)["Strawberry"]);
         $slot = $plan["tree"]["children"][0]["slot"];
         $this->assertSame(4, $slot["per_craft"]);
-        $this->assertSame([[self::APPLE, 2], [self::STRAWBERRY, 4]], array_map(fn($a) => [$a["id"], $a["qty"]], $slot["alternatives"]));
+        $this->assertSame([[self::APPLE, 2, false], [self::STRAWBERRY, 4, true]], array_map(fn($a) => [$a["id"], $a["qty"], $a["estimated"]], $slot["alternatives"]));
     }
 
     public function testSubstituteThatNoRecipeAllowsIsReported(): void

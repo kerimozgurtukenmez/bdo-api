@@ -128,6 +128,66 @@ final class ImporterTest extends TestCase
         $this->assertSame([self::RAW_SUGAR => 1, self::HONEY => 1], $kept[122]["slots"][3]["alternatives"]);
     }
 
+    public function testVariantGivesTheExactAmountOfAKnownSubstitute(): void
+    {
+        $recipes = self::beerRecipes([
+            self::slot(self::MINERAL_WATER, 6), self::slot(self::CORN, 5),
+            self::slot(self::LEAVENING, 2), self::slot(self::HONEY, 1),
+        ]);
+        $recipes[122]["slots"][3]["alternatives"][self::HONEY] = null;  // listed as a substitute, amount unknown
+
+        [$kept, $folded] = fold_recipe_variants($recipes, [9213 => "Beer"]);
+
+        $this->assertSame([200], $folded);
+        $this->assertSame([self::RAW_SUGAR => 1, self::HONEY => 1], $kept[122]["slots"][3]["alternatives"]);
+    }
+
+    public function testProcessingVariantsFoldOnlyWithTheSameProducts(): void
+    {
+        $tea = fn(int $water, int $citron, int $max = 1, string $category = "Simple Cooking") => [
+            "name" => "Citron Tea", "category" => $category, "main" => 9301,
+            "output" => [["item_id" => 9301, "qty_min" => 1, "qty_max" => $max]],
+            "slots" => [self::slot($water, 1), self::slot($citron, 1)],
+        ];
+        $recipes = [
+            3233 => $tea(6656, 7340),
+            3234 => $tea(6657, 7340),       // other water
+            4104 => $tea(6657, 7342),       // other water and other citron: fits after 3234
+            4200 => $tea(6656, 7343, 3),    // other amount of tea
+            4300 => $tea(6656, 7344, 1, "Heating"),
+        ];
+
+        [$kept, $folded] = fold_recipe_variants($recipes, [9301 => "Citron Tea"], sameOutputs: true);
+
+        $this->assertSame([3234, 4104], $folded);
+        $this->assertSame([3233, 4200, 4300], array_keys($kept));
+        $this->assertSame([6657 => 1], $kept[3233]["slots"][0]["alternatives"]);
+        $this->assertSame([7342 => 1], $kept[3233]["slots"][1]["alternatives"]);
+    }
+
+    public function testSubstituteAmountByGrade(): void
+    {
+        // Every grade step up halves the amount (rounded down, at least 1), every step down doubles it
+        $this->assertSame(2, estimate_substitute_qty(4, 0, 1));
+        $this->assertSame(1, estimate_substitute_qty(4, 0, 2));
+        $this->assertSame(2, estimate_substitute_qty(5, 0, 1));  // Citron ×5 → High-quality Citron ×2
+        $this->assertSame(3, estimate_substitute_qty(6, 0, 1));  // Cooking Honey ×6 → High-quality ×3
+        $this->assertSame(1, estimate_substitute_qty(1, 0, 2));
+        $this->assertSame(4, estimate_substitute_qty(2, 1, 0));
+        $this->assertSame(5, estimate_substitute_qty(5, 2, 2));
+    }
+
+    public function testUnknownSubstituteAmountsAreEstimated(): void
+    {
+        $grades = [7340 => 0, 7341 => 1, 7342 => 2, 7350 => 0];
+        $slots = fill_substitute_amounts([
+            ["item_id" => 7340, "qty" => 5, "alternatives" => [7341 => null, 7342 => 1, 7350 => null]],
+        ], $grades);
+
+        $this->assertSame([7341 => 2, 7342 => 1, 7350 => 5], $slots[0]["alternatives"]);
+        $this->assertSame([7341], $slots[0]["estimated"]);  // the same grade keeps the amount; 7342 was exact
+    }
+
     public function testRecipesThatDifferMoreAreKept(): void
     {
         $recipes = self::beerRecipes(

@@ -76,29 +76,42 @@ function main_output_index(array $recipe, array $itemNames): int
     return 0;
 }
 
-// bdocodex lists a cooking or alchemy recipe once with its substitute groups,
-// and again for some fixed ingredient combinations of it. Such a variant is
-// folded into the main recipe of its product (named after it, lowest id): if
-// every ingredient fits the main recipe's slots it is dropped; if one does
-// not, that ingredient becomes a substitute of the remaining slot with its own
-// amount (e.g. Purified Water ×3 for Mineral Water ×6).
+// bdocodex lists a recipe once with its substitute groups, and again for some
+// fixed ingredient combinations of it (Citron Tea: 2 waters × 3 citrons = 6
+// recipes). Such a variant is folded into the main recipe of its product and
+// category (named after the product, lowest id): if every ingredient fits the
+// main recipe's slots it is dropped; if one does not, that ingredient becomes
+// a substitute of the remaining slot with its own amount (e.g. Purified Water
+// ×3 for Mineral Water ×6). A variant also gives the exact amount of a
+// substitute the main recipe lists without one.
 //
-// $recipes: id => ["name", "main" => product item id,
-//                  "slots" => [["item_id", "qty", "alternatives" => [item id => qty]]]]
+// Processing recipes fold only with the same products ($sameOutputs): melting
+// different equipment into Melted Iron Shard gives different amounts, so those
+// stay recipes of their own.
+//
+// $recipes: id => ["name", "category", "output", "main" => product item id,
+//                  "slots" => [["item_id", "qty", "alternatives" => [item id => qty or null (unknown)]]]]
 // Returns [the recipes to keep, ids of the folded variants].
-function fold_recipe_variants(array $recipes, array $itemNames): array
+function fold_recipe_variants(array $recipes, array $itemNames, bool $sameOutputs = false): array
 {
     $byProduct = [];
     foreach ($recipes as $id => $recipe) {
-        $byProduct[$recipe["main"]][] = $id;
+        $key = $recipe["main"] . "|" . ($recipe["category"] ?? "");
+        if ($sameOutputs) {
+            $outputs = array_map(fn($o) => [$o["item_id"], $o["qty_min"] ?? 1, $o["qty_max"] ?? 1], $recipe["output"] ?? []);
+            sort($outputs);
+            $key .= "|" . json_encode($outputs);
+        }
+        $byProduct[$key][] = $id;
     }
 
     $folded = [];
-    foreach ($byProduct as $product => $ids) {
+    foreach ($byProduct as $ids) {
         if (count($ids) < 2) {
             continue;
         }
 
+        $product = $recipes[$ids[0]]["main"];
         $rank = fn($id) => [strcasecmp(trim($recipes[$id]["name"]), $itemNames[$product] ?? "") !== 0, $id];
         usort($ids, fn($a, $b) => $rank($a) <=> $rank($b));
         $mainId = array_shift($ids);
@@ -133,12 +146,17 @@ function fold_variant(array $main, array $variant): ?array
 
     $free      = array_keys($main);  // main slots no variant ingredient has used yet
     $unmatched = [];
+    $learned   = [];                 // [slot, item, qty]: substitute amounts the variant shows
     foreach ($variant as $ingredient) {
-        $hit = null;
+        $item = $ingredient["item_id"];
+        $hit  = null;
         foreach ($free as $i => $s) {
             $group = [$main[$s]["item_id"] => $main[$s]["qty"]] + $main[$s]["alternatives"];
-            if (($group[$ingredient["item_id"]] ?? null) === $ingredient["qty"]) {
+            if (array_key_exists($item, $group) && ($group[$item] === null || $group[$item] === $ingredient["qty"])) {
                 $hit = $i;
+                if ($group[$item] === null) {
+                    $learned[] = [$s, $item, $ingredient["qty"]];
+                }
                 break;
             }
         }
@@ -152,6 +170,9 @@ function fold_variant(array $main, array $variant): ?array
     if (count($unmatched) > 1) {
         return null;
     }
+    foreach ($learned as [$s, $item, $qty]) {
+        $main[$s]["alternatives"][$item] = $qty;
+    }
     if ($unmatched) {
         $slot = reset($free);
         $item = $unmatched[0]["item_id"];
@@ -162,4 +183,38 @@ function fold_variant(array $main, array $variant): ?array
     }
 
     return $main;
+}
+
+// A substitute of another grade needs another amount: every grade step up
+// halves it (white 4 → green 2 → blue 1, rounded down, at least 1), every step
+// down doubles it. Used when the source gives no exact amount; bdocodex's own
+// rule is a range (1 green = 2–3 white, 1 blue = 3–5 white).
+function estimate_substitute_qty(int $qty, int $grade, int $substituteGrade): int
+{
+    $steps = $substituteGrade - $grade;
+    return $steps >= 0 ? max(1, intdiv($qty, 2 ** $steps)) : $qty * 2 ** -$steps;
+}
+
+// Fills in the substitute amounts nothing gave exactly. Estimates that differ
+// from the default's amount are listed under "estimated" (item ids); the same
+// grade, or 1 of a better one, keeps the default's amount.
+function fill_substitute_amounts(array $slots, array $itemGrades): array
+{
+    foreach ($slots as &$slot) {
+        $slot["estimated"] = [];
+        foreach ($slot["alternatives"] as $item => &$qty) {
+            if ($qty !== null) {
+                continue;
+            }
+            $grade    = $itemGrades[$slot["item_id"]] ?? 0;
+            $altGrade = $itemGrades[$item] ?? 0;
+            $qty = estimate_substitute_qty($slot["qty"], $grade, $altGrade);
+            if ($qty !== $slot["qty"]) {
+                $slot["estimated"][] = $item;
+            }
+        }
+        unset($qty);
+    }
+    unset($slot);
+    return $slots;
 }

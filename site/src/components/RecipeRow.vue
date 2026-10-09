@@ -1,6 +1,6 @@
 <script setup>
 import { number } from '../format.js'
-import { calculatorRoute } from '../links.js'
+import { calculatorRoute, itemRoute } from '../links.js'
 import IngredientSlots from './IngredientSlots.vue'
 import ItemIcon from './ItemIcon.vue'
 import ItemLink from './ItemLink.vue'
@@ -27,7 +27,15 @@ defineProps({
       <RareProducts v-if="recipe.rare?.length" :products="recipe.rare" class="recipe-rare" />
     </div>
     <IngredientSlots :slots="recipe.ingredients ?? []" :shown="1" class="ingredients" />
-    <RouterLink v-if="recipe.item_id" :to="calculatorRoute(recipe.item_id, recipe.key)" class="btn btn-secondary btn-sm">Calculate</RouterLink>
+    <!-- Several recipes make it: pick one on the item page -->
+    <RouterLink
+      v-if="recipe.item_id && recipe.product_recipes > 1"
+      :to="{ ...itemRoute({ id: recipe.item_id, name: recipe.name }), hash: '#how-to-make' }"
+      class="btn btn-secondary btn-sm"
+    >
+      {{ recipe.product_recipes }} recipes
+    </RouterLink>
+    <RouterLink v-else-if="recipe.item_id" :to="calculatorRoute(recipe.item_id, recipe.key)" class="btn btn-secondary btn-sm">Calculate</RouterLink>
   </li>
 </template>
 

@@ -7,6 +7,8 @@
 //       search=sauce  item_id=9003 (makes it, also as byproduct)  ingredient_id=9065 (uses it)
 //       ingredient_id also matches substitutes
 //       with_ingredients=1 (ingredient slots with their substitutes, and rare products)  page=1  limit=50
+//       per_product=1: one row per product and category — the recipe the calculator uses
+//       by default, with product_recipes = how many of the matching recipes make it
 
 declare(strict_types=1);
 
@@ -30,15 +32,16 @@ const RECIPE_COLUMNS = "r.source, r.id, r.name, r.category, r.grade, r.grade_nam
 // ── Categories per source, for filters ───────────────────────────────────────
 if (param_bool("categories")) {
     $rows = query("
-        SELECT source, category, COUNT(*) AS recipes
-        FROM recipes
-        GROUP BY source, category
-        ORDER BY source, recipes DESC
+        SELECT r.source, r.category, COUNT(*) AS recipes, COUNT(DISTINCT mo.item_id) AS products
+        FROM recipes r
+        LEFT JOIN recipe_outputs mo ON mo.recipe_source = r.source AND mo.recipe_id = r.id AND mo.is_main = 1
+        GROUP BY r.source, r.category
+        ORDER BY r.source, recipes DESC
     ")->fetchAll();
 
     $result = array_fill_keys(RECIPE_SOURCES, []);
     foreach ($rows as $row) {
-        $result[$row["source"]][] = ["category" => $row["category"], "recipes" => $row["recipes"]];
+        $result[$row["source"]][] = ["category" => $row["category"], "recipes" => $row["recipes"], "products" => $row["products"]];
     }
     json_out($result);
 }
@@ -148,13 +151,45 @@ if ($ingredientId !== null) {
 
 $whereSql = $where ? "WHERE " . implode(" AND ", $where) : "";
 
-$recipes = query("
-    SELECT " . RECIPE_COLUMNS . "
-    FROM recipes r
-    $whereSql
-    ORDER BY r.source, r.category, r.skill_sort, r.name, r.id
-    LIMIT ? OFFSET ?
-", [...$params, $limit, $offset])->fetchAll();
+if (param_bool("per_product")) {
+    // The default recipe ranks first: named after the product, then the lowest id
+    $recipes = query("
+        SELECT * FROM (
+            SELECT " . RECIPE_COLUMNS . ", r.skill_sort,
+                   COUNT(*) OVER (PARTITION BY r.source, r.category, mo.item_id) AS product_recipes,
+                   ROW_NUMBER() OVER (PARTITION BY r.source, r.category, mo.item_id
+                                      ORDER BY r.name = p.name DESC, r.id) AS nth
+            FROM recipes r
+            JOIN recipe_outputs mo ON mo.recipe_source = r.source AND mo.recipe_id = r.id AND mo.is_main = 1
+            JOIN items p           ON p.id = mo.item_id
+            $whereSql
+        ) t
+        WHERE nth = 1
+        ORDER BY source, category, skill_sort, name, id
+        LIMIT ? OFFSET ?
+    ", [...$params, $limit, $offset])->fetchAll();
+    $recipes = array_map(function ($recipe) {
+        unset($recipe["nth"], $recipe["skill_sort"]);
+        return $recipe;
+    }, $recipes);
+
+    $total = (int)query("
+        SELECT COUNT(DISTINCT r.source, r.category, mo.item_id)
+        FROM recipes r
+        JOIN recipe_outputs mo ON mo.recipe_source = r.source AND mo.recipe_id = r.id AND mo.is_main = 1
+        $whereSql
+    ", $params)->fetchColumn();
+} else {
+    $recipes = query("
+        SELECT " . RECIPE_COLUMNS . "
+        FROM recipes r
+        $whereSql
+        ORDER BY r.source, r.category, r.skill_sort, r.name, r.id
+        LIMIT ? OFFSET ?
+    ", [...$params, $limit, $offset])->fetchAll();
+
+    $total = (int)query("SELECT COUNT(*) FROM recipes r $whereSql", $params)->fetchColumn();
+}
 
 $recipes = array_map("format_recipe", $recipes);
 
@@ -167,7 +202,5 @@ if (param_bool("with_ingredients")) {
     }
     unset($recipe);
 }
-
-$total = (int)query("SELECT COUNT(*) FROM recipes r $whereSql", $params)->fetchColumn();
 
 json_out(paginated($recipes, $total, $page, $limit));

@@ -51,8 +51,8 @@ final class TestDatabase
     }
 
     /**
-     * @param list<array{0: int, 1: int, 2?: list<int|array{0: int, 1: int}>}> $ingredients
-     *        [item id, qty, substitutes]; a substitute is an item id or [item id, its own qty]
+     * @param list<array{0: int, 1: int, 2?: list<int|array{0: int, 1: int, 2?: bool}>}> $ingredients
+     *        [item id, qty, substitutes]; a substitute is an item id or [item id, its own qty, estimated]
      * @param list<array{0: int, 1: int, 2: int}>        $outputs     [item id, min, max]; the first is the main product
      */
     public static function addRecipe(PDO $pdo, string $source, int $id, string $name, string $category,
@@ -64,13 +64,13 @@ final class TestDatabase
         foreach ($ingredients as $slot => $ing) {
             [$itemId, $qty, $alternatives] = $ing + [2 => []];
             $insert = $pdo->prepare("
-                INSERT INTO recipe_inputs (recipe_source, recipe_id, slot, item_id, qty_min, qty_max, is_alternative, slot_item_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO recipe_inputs (recipe_source, recipe_id, slot, item_id, qty_min, qty_max, is_alternative, qty_estimated, slot_item_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ");
-            $insert->execute([$source, $id, $slot, $itemId, $qty, $qty, 0, null]);
+            $insert->execute([$source, $id, $slot, $itemId, $qty, $qty, 0, 0, null]);
             foreach ($alternatives as $alt) {
-                [$altId, $altQty] = is_array($alt) ? $alt : [$alt, $qty];
-                $insert->execute([$source, $id, $slot, $altId, $altQty, $altQty, 1, $itemId]);
+                [$altId, $altQty, $estimated] = (is_array($alt) ? $alt : [$alt, $qty]) + [2 => false];
+                $insert->execute([$source, $id, $slot, $altId, $altQty, $altQty, 1, $estimated ? 1 : 0, $itemId]);
             }
         }
 

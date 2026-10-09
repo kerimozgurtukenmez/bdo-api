@@ -83,7 +83,8 @@ $stmt = $pdo->prepare("
         icon = VALUES(icon), link = VALUES(link)
 ");
 
-$itemNames = [];  // id => name, used to validate references below
+$itemNames  = [];  // id => name, used to validate references below
+$itemGrades = [];  // id => grade, for substitute amounts
 foreach (readJson("items.json") as $item) {
     $stmt->execute([
         $item["id"],
@@ -93,7 +94,8 @@ foreach (readJson("items.json") as $item) {
         icon_path($item["icon"] ?? null),
         $item["link"] ?? null,
     ]);
-    $itemNames[$item["id"]] = trim($item["name"]);
+    $itemNames[$item["id"]]  = trim($item["name"]);
+    $itemGrades[$item["id"]] = (int)($item["grade"] ?? 0);
 }
 step("  " . count($itemNames) . " items");
 
@@ -167,8 +169,8 @@ $recipeStmt = $pdo->prepare("
 ");
 $inputStmt = $pdo->prepare("
     INSERT INTO recipe_inputs (recipe_source, recipe_id, slot, item_id, qty_min, qty_max,
-                               is_key, is_alternative, slot_item_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                               is_key, is_alternative, qty_estimated, slot_item_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ");
 $outputStmt = $pdo->prepare("
     INSERT INTO recipe_outputs (recipe_source, recipe_id, item_id, qty_min, qty_max, is_main)
@@ -210,16 +212,15 @@ foreach (RECIPE_SOURCES as $source) {
             $warnings[] = "$label: ingredient_ids do not match ingredients, alternatives ignored";
         }
 
-        // Substitutes start with the default ingredient's amount; a folded
-        // variant may add one with its own amount
+        // Substitute amounts are unknown (null) until a folded variant shows
+        // them; the rest are estimated from their grade after folding
         $recipe["slots"] = [];
         foreach ($recipe["ingredients"] as $slot => $ing) {
-            $qty = $ing["qty_min"] ?? 1;
             $recipe["slots"][$slot] = [
                 "item_id"      => $ing["item_id"],
-                "qty"          => $qty,
+                "qty"          => $ing["qty_min"] ?? 1,
                 "is_key"       => !empty($ing["is_key"]),
-                "alternatives" => array_fill_keys($alternatives[$slot], $qty),
+                "alternatives" => array_fill_keys($alternatives[$slot], null),
             ];
         }
         $recipe["main_index"] = main_output_index($recipe, $itemNames);
@@ -227,14 +228,15 @@ foreach (RECIPE_SOURCES as $source) {
         $recipes[$recipe["id"]] = $recipe;
     }
 
-    // Processing recipes with other ingredients are other processes (melting
-    // a sword is not a variant of melting ore), so only these are folded
-    $folded = [];
-    if ($source !== "processing") {
-        [$recipes, $folded] = fold_recipe_variants($recipes, $itemNames);
-    }
+    // Imperial delivery boxes are packed per recipe: every dish is a recipe of
+    // its own, never a variant
+    $imperial = array_filter($recipes, fn($r) => str_starts_with($r["category"], "Imperial"));
+    [$recipes, $folded] = fold_recipe_variants(array_diff_key($recipes, $imperial), $itemNames, sameOutputs: $source === "processing");
+    $recipes += $imperial;
+    ksort($recipes);
 
     foreach ($recipes as $recipe) {
+        $recipe["slots"] = fill_substitute_amounts($recipe["slots"], $itemGrades);
         $recipeStmt->execute([
             $source,
             $recipe["id"],
@@ -251,9 +253,10 @@ foreach (RECIPE_SOURCES as $source) {
         ]);
 
         foreach ($recipe["slots"] as $slot => $ing) {
-            $inputStmt->execute([$source, $recipe["id"], $slot, $ing["item_id"], $ing["qty"], $ing["qty"], $ing["is_key"] ? 1 : 0, 0, null]);
+            $inputStmt->execute([$source, $recipe["id"], $slot, $ing["item_id"], $ing["qty"], $ing["qty"], $ing["is_key"] ? 1 : 0, 0, 0, null]);
             foreach ($ing["alternatives"] as $altId => $qty) {
-                $inputStmt->execute([$source, $recipe["id"], $slot, $altId, $qty, $qty, 0, 1, $ing["item_id"]]);
+                $estimated = in_array($altId, $ing["estimated"], true) ? 1 : 0;
+                $inputStmt->execute([$source, $recipe["id"], $slot, $altId, $qty, $qty, 0, 1, $estimated, $ing["item_id"]]);
             }
         }
 

@@ -86,6 +86,7 @@ CREATE TABLE IF NOT EXISTS recipe_inputs (
     qty_max        INT UNSIGNED     NOT NULL DEFAULT 1,
     is_key         TINYINT(1)       NOT NULL DEFAULT 0,
     is_alternative TINYINT(1)       NOT NULL DEFAULT 0,
+    qty_estimated  TINYINT(1)       NOT NULL DEFAULT 0,  -- substitute amount from the grade rule, not from the source
     slot_item_id   INT UNSIGNED     DEFAULT NULL,      -- default item of the slot (alternatives only)
     PRIMARY KEY (id),
     KEY idx_inputs_recipe (recipe_source, recipe_id, slot),
@@ -110,6 +111,9 @@ CREATE TABLE IF NOT EXISTS recipe_outputs (
     CONSTRAINT fk_outputs_recipe FOREIGN KEY (recipe_source, recipe_id) REFERENCES recipes (source, id) ON DELETE CASCADE,
     CONSTRAINT fk_outputs_item   FOREIGN KEY (item_id) REFERENCES items (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Columns added after the first release, for databases created before them
+ALTER TABLE recipe_inputs ADD COLUMN IF NOT EXISTS qty_estimated TINYINT(1) NOT NULL DEFAULT 0 AFTER is_alternative;
 
 -- One Central Market price per item and day (written by bin/update_prices.php)
 CREATE TABLE IF NOT EXISTS item_price_history (

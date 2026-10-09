@@ -257,7 +257,7 @@ final class CraftCalculator
     private function slots(array $recipe): array
     {
         $stmt = $this->pdo->prepare("
-            SELECT slot, item_id, qty_min, is_key, is_alternative
+            SELECT slot, item_id, qty_min, is_key, is_alternative, qty_estimated
             FROM recipe_inputs
             WHERE recipe_source = ? AND recipe_id = ?
             ORDER BY slot, is_alternative, id
@@ -276,9 +276,13 @@ final class CraftCalculator
                     "default_qty"     => $row["qty_min"],
                     "is_key"          => (bool)$row["is_key"],
                     "alternatives"    => [],  // item id => amount per craft
+                    "estimated"       => [],  // item id => true: amount from the grade rule
                 ];
             } elseif (isset($slots[$n])) {
                 $slots[$n]["alternatives"][$row["item_id"]] = $row["qty_min"];
+                if ($row["qty_estimated"]) {
+                    $slots[$n]["estimated"][$row["item_id"]] = true;
+                }
             }
         }
 
@@ -489,8 +493,13 @@ final class CraftCalculator
                 "is_key"          => $slot["is_key"],
                 "default_item_id" => $slot["default_item_id"],
                 // Every item the slot accepts, the default first, with its amount per craft
+                // ("estimated": the amount comes from the grade rule, see estimate_substitute_qty)
                 "alternatives"    => array_map(
-                    fn($id, $qty) => $this->itemRef($id) + ["qty" => $qty, "price" => item_price($this->items[$id])],
+                    fn($id, $qty) => $this->itemRef($id) + [
+                        "qty"       => $qty,
+                        "estimated" => isset($slot["estimated"][$id]),
+                        "price"     => item_price($this->items[$id]),
+                    ],
                     array_keys([$slot["default_item_id"] => $slot["default_qty"]] + $slot["alternatives"]),
                     [$slot["default_item_id"] => $slot["default_qty"]] + $slot["alternatives"]
                 ),
