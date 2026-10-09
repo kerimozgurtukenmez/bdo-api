@@ -29,12 +29,74 @@ php bin/download_icons.php   # item icons (hours: the source throttles; rerun to
 
 Downloaded data (`data/`), icons (`public/icons/`) and database dumps are not
 in git. `data/item_descriptions.json` (item details) cannot be re-scraped yet;
-the importer skips it when it is missing. Nothing is scheduled on a development
-machine: run the scripts yourself when you want fresh data.
+the importer skips it when it is missing. Nothing runs on its own: start the
+worker (below) while you want the data kept fresh.
 
 Settings live in `config/config.php`; put machine-specific overrides in
 `config/config.local.php` (git-ignored). The environment variables
 `BDO_DB_HOST`, `BDO_DB_NAME`, `BDO_DB_USER` and `BDO_DB_PASS` override both.
+
+## Keeping the data fresh
+
+```bash
+php bin/worker.php          # runs until Ctrl+C
+```
+
+The worker runs the data scripts on a schedule while it is running: game data
+(`scrape.php` → `import.php` → `download_icons.php`) once a day, market prices
+(`update_prices.php`) every hour. When it is stopped the site keeps working on
+the data of its last run. The last run of each task is kept in the database
+(`worker_runs`), so starting it again only runs what is due; a failed task is
+retried after 15 minutes. `--now` runs everything right away first; `--once`
+runs what is due and exits. Intervals: `"worker"` in `config/config.php`.
+
+## Running on a server
+
+The same code runs on any machine with PHP 8.2+, MariaDB and Apache — a spare
+computer at home or a rented server. Composer and Node are only needed where
+you build: copy the built site (`site/dist/`) along.
+
+1. **Packages** (Arch Linux): `sudo pacman -S apache php php-apache mariadb`.
+   In `/etc/httpd/conf/httpd.conf` load `mod_rewrite` and PHP (`php_module`,
+   with `mpm_prefork` instead of `mpm_event`), and allow `.htaccess` files:
+   `AllowOverride All` for the document root (`/srv/http`).
+2. **Database**: `sudo mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql`,
+   `sudo systemctl enable --now mariadb httpd`, then create the database and a
+   user with a password (not root), and put them in `config/config.local.php`.
+3. **Code and data**: put the project in `/srv/http/BDO-website`, so the
+   URLs are the same as under XAMPP (`/BDO-website/site/`, no rebuild). Copy
+   what git does not have: `site/dist/`, `api/public/icons/`, `api/data/`, and
+   the database (`mysqldump bdo_craft > bdo_craft.sql` here, `mariadb bdo_craft < bdo_craft.sql` there).
+4. **Worker as a service**, so it starts with the machine:
+
+   ```ini
+   # /etc/systemd/system/bdo-worker.service
+   [Unit]
+   Description=BDO Craft data worker
+   After=network-online.target mariadb.service
+   Wants=network-online.target
+
+   [Service]
+   User=http
+   WorkingDirectory=/srv/http/BDO-website/api
+   ExecStart=/usr/bin/php bin/worker.php
+   Restart=always
+   RestartSec=60
+
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+   `sudo systemctl enable --now bdo-worker`; its output: `journalctl -u bdo-worker -f`.
+   The `http` user needs write access to `api/data/` and `api/public/icons/`.
+   Without systemd, cron works too: `*/10 * * * * cd /srv/http/BDO-website/api && php bin/worker.php --once`.
+5. **Open it** from another computer at `http://<server ip>/BDO-website/site/`.
+
+On the home network that is all. Before opening it to the internet: a domain
+with HTTPS (certbot), a firewall that only lets the web server through, and
+`"debug" => false` (the default). To serve the site at another path, build it
+with `SITE_BASE=/ npm run build` and set `VITE_API_BASE` in `site/.env` and
+`"icons" => ["url" => ...]` in `config.local.php` to match.
 
 ## Development
 
@@ -58,7 +120,8 @@ the tests are worked out by hand from it.
 | `bin/scrape.php` | Downloads items, recipes, the cooking/alchemy mastery tables and the Imperial boxes' item pages (their base price) from bdocodex — about 20 requests, cached for a day in `data/cache/`; `--refresh` to force — and rewrites the JSON files in `data/`, printing what changed. Run after a game patch, then `import.php`. |
 | `bin/import.php` | Imports the JSON files in `data/`: recipes and mastery tables are replaced, items updated, items no longer listed removed, market prices and price history kept. |
 | `bin/import.php --fresh` | Drops and recreates all tables from `database/schema.sql` first. Needed after schema changes. |
-| `bin/update_prices.php` | Fetches prices from arsha.io for every recipe item not updated in the last hour and records the day's price in the price history. The market API blocks fast clients now and then; failed batches are retried on the next run. `--force` refreshes everything, or pass item ids. |
+| `bin/update_prices.php` | Fetches prices from arsha.io for every recipe item not updated in the last hour (items not on the market: once a day) and records the day's price in the price history. The market API blocks fast clients now and then; failed batches are retried on the next run. `--force` refreshes everything, or pass item ids. |
+| `bin/worker.php` | Runs the scripts above on a schedule while it runs (see Keeping the data fresh). |
 | `bin/download_icons.php` | Downloads the icons of all recipes and recipe items into `public/icons/`. Skips icons already on disk, stops after 10 failures in a row. Until an icon is downloaded the API links the source. |
 
 ## Endpoints

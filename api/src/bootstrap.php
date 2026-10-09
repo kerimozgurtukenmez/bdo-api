@@ -45,20 +45,27 @@ function db(?PDO $use = null): PDO
         $pdo = $use;
     }
     if ($pdo === null) {
-        $c = config("db");
-        $pdo = new PDO(
-            "mysql:host={$c['host']};dbname={$c['name']};charset={$c['charset']}",
-            $c["user"],
-            $c["pass"],
-            [
-                PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-                PDO::ATTR_EMULATE_PREPARES   => false,
-            ]
-        );
+        $pdo = db_connect();
     }
 
     return $pdo;
+}
+
+// A new connection with the configured settings (bin/worker.php reconnects
+// with it, as a long-running process outlives database restarts)
+function db_connect(): PDO
+{
+    $c = config("db");
+    return new PDO(
+        "mysql:host={$c['host']};dbname={$c['name']};charset={$c['charset']}",
+        $c["user"],
+        $c["pass"],
+        [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ]
+    );
 }
 
 // Prepare and run a query; ints are bound as integers (needed for LIMIT).

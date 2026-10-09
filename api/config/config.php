@@ -25,6 +25,13 @@ return [
         "region" => "eu",  // na, eu, sea, mena, kr, ru, jp, th, tw, sa, console_eu, ...
     ],
 
+    // bin/worker.php: how often each task runs, and how soon a failed one is retried
+    "worker" => [
+        "prices_minutes"  => 60,  // market prices (bin/update_prices.php)
+        "game_data_hours" => 24,  // bdocodex items, recipes, mastery; then icons
+        "retry_minutes"   => 15,
+    ],
+
     // true: API errors include the exception message (never enable in production)
     "debug" => false,
 ];

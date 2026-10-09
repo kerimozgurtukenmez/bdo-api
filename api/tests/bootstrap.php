@@ -11,3 +11,4 @@ require __DIR__ . "/../src/CraftCalculator.php";
 require __DIR__ . "/../src/mastery.php";
 require __DIR__ . "/../src/prices.php";
 require __DIR__ . "/../src/imperial.php";
+require __DIR__ . "/../src/worker.php";

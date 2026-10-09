@@ -4,6 +4,7 @@
 // recipe (ingredients, substitutes and products).
 //
 //   php bin/update_prices.php              recipe items not updated in the last hour
+//                                          (items not on the market: in the last day)
 //   php bin/update_prices.php --force      all recipe items
 //   php bin/update_prices.php 9065 7313    only these item ids
 //
@@ -29,6 +30,9 @@ const BATCH_SIZE    = 100;   // arsha.io silently returns zeros past 100 ids per
 const REQUEST_DELAY = 2000;  // ms between requests; faster runs get blocked upstream
 const MAX_RETRIES   = 3;     // per batch, waiting 10s, 30s, 90s
 const STALE_AFTER   = 60;    // minutes before a stored price is fetched again
+// Over half the recipe items are never on the market (quest items, untradeable
+// intermediates); asking for them every hour only gets the run throttled
+const NO_MARKET_STALE_AFTER = 1440;
 
 $pdo    = db();
 $market = config("market");
@@ -41,7 +45,8 @@ if (!$ids) {
         SELECT t.item_id
         FROM (SELECT item_id FROM recipe_inputs UNION SELECT item_id FROM recipe_outputs) t
         LEFT JOIN item_prices p ON p.item_id = t.item_id
-        " . ($force ? "" : "WHERE p.item_id IS NULL OR p.updated_at < NOW() - INTERVAL " . STALE_AFTER . " MINUTE") . "
+        " . ($force ? "" : "WHERE p.item_id IS NULL
+                               OR p.updated_at < NOW() - INTERVAL IF(p.base_price > 0, " . STALE_AFTER . ", " . NO_MARKET_STALE_AFTER . ") MINUTE") . "
         ORDER BY t.item_id
     ")->fetchAll(PDO::FETCH_COLUMN);
 }
@@ -148,7 +153,11 @@ foreach ($batches as $n => $batch) {
     foreach ($batch as $id) {
         $e = $entries[$id] ?? null;
         if ($e === null) {
+            // Not on the market at all: remember that it was checked
             $missing++;
+            if (!isset($hasPrice[$id])) {
+                $stmt->execute([$id, 0, 0, 0, 0, 0, 0, 0]);
+            }
             continue;
         }
         if (($e["basePrice"] ?? 0) <= 0 && isset($hasPrice[$id])) {
@@ -177,7 +186,7 @@ foreach ($batches as $n => $batch) {
 }
 
 printf(
-    "\n=== Done in %.1fs: %d on the market, %d not tradeable, %d kept old price, %d without response, %d failed ===\n",
+    "\n=== Done in %.1fs: %d on the market, %d not tradeable, %d kept old price, %d not on the market, %d failed ===\n",
     microtime(true) - $start, $onMarket, $notOnMarket, $kept, $missing, $failed
 );
 

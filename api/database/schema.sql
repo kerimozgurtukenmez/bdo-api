@@ -125,6 +125,16 @@ CREATE TABLE IF NOT EXISTS item_price_history (
     CONSTRAINT fk_price_history_item FOREIGN KEY (item_id) REFERENCES items (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Last run of each bin/worker.php task, so a restart knows what is due
+CREATE TABLE IF NOT EXISTS worker_runs (
+    task        VARCHAR(30)  NOT NULL,
+    started_at  DATETIME     NOT NULL,
+    finished_at DATETIME     DEFAULT NULL,  -- NULL while running (or if the worker was stopped)
+    ok          TINYINT(1)   NOT NULL DEFAULT 0,
+    message     VARCHAR(255) DEFAULT NULL,
+    PRIMARY KEY (task)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Life skill mastery bonuses (bdocodex mastery tables), as fractions
 CREATE TABLE IF NOT EXISTS mastery_bonuses (
     skill    VARCHAR(20)       NOT NULL,  -- cooking | alchemy
