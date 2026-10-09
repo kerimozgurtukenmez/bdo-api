@@ -1,4 +1,5 @@
-const API = 'http://localhost/bdo-api/api';
+// Relative to the page: bdo-site and bdo-api are sibling folders
+const API = '../bdo-api/api';
 
 // Page Status
 let currentPage = 1;
@@ -71,7 +72,7 @@ function buildRecipeRow(recipe) {
     const gradeClass = `grade-${recipe.grade}`;
 
     return `
-        <a href="/bdo-site/recipe.php?id=${recipe.id}&source=cooking" class="recipe-row">
+        <a href="recipe.php?id=${recipe.id}&source=cooking" class="recipe-row">
             <div class="recipe-main">
                 <img 
                     src="${recipe.icon}" 

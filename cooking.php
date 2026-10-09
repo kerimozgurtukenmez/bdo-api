@@ -5,7 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Cooking Recipes</title>
-    <link rel="stylesheet" href="/bdo-site/css/style.css">
+    <link rel="stylesheet" href="css/style.css">
     <style>
         a.recipe-row {
             display: flex !important;
@@ -122,8 +122,8 @@
 
     <?php include 'includes/footer.php'; ?>
 
-    <script src="/bdo-site/js/main.js"></script>
-    <script src="/bdo-site/js/cooking.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/cooking.js"></script>
 </body>
 
 </html>

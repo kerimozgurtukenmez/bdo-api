@@ -3,30 +3,30 @@ $current_page = basename($_SERVER['PHP_SELF'], '.php');
 ?>
 
 <nav class="navbar">
-    <a href="/bdo-site/index.php" class="navbar-logo">
+    <a href="index.php" class="navbar-logo">
         MyWebsite
     </a>
     <ul class="navbar-links">
         <li>
-            <a href="/bdo-site/cooking.php"
+            <a href="cooking.php"
             class="<?= $current_page === 'cooking' ? 'active' : '' ?>">
             Cooking
         </a>
         </li>
         <li>
-            <a href="/bdo-site/alchemy.php"
+            <a href="alchemy.php"
             class="<?= $current_page === 'alchemy' ? 'active' : '' ?>">
             Alchemy
         </a>
         </li>
         <li>
-            <a href="/bdo-site/processing.php"
+            <a href="processing.php"
             class="<?= $current_page === 'processing' ? 'active' : '' ?>">
             processing
         </a>
         </li>
         <li>
-            <a href="/bdo-site/items.php"
+            <a href="items.php"
             class="<?= $current_page === 'items' ? 'active' : '' ?>">
             Items
         </a>
