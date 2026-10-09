@@ -4,7 +4,8 @@ import { computed, reactive, watch } from 'vue'
 // to a plan, so they are not in the URL):
 //   valuePack, fame — what is kept from a Central Market sale:
 //                     price × 0.65 × (1 + 0.30 with a Value Pack + fame bonus)
-//   mastery         — cooking / alchemy mastery: more products per craft and
+//   mastery         — processing mastery: items per Mass Process (processing time);
+//                     cooking / alchemy mastery: more products per craft and
 //                     a higher Imperial delivery payout
 
 export const FAME_TIERS = [
@@ -14,13 +15,13 @@ export const FAME_TIERS = [
   { bonus: 0.015, label: '7,000+' },
 ]
 
-export const MASTERY_SKILLS = ['cooking', 'alchemy']
+export const MASTERY_SKILLS = ['cooking', 'alchemy', 'processing']
 export const MAX_MASTERY = 3000
 
 const STORAGE_KEY = 'settings'
 const OLD_STORAGE_KEY = 'seller'  // before mastery existed
 
-const defaults = () => ({ valuePack: true, fame: 0, mastery: { cooking: 0, alchemy: 0 } })
+const defaults = () => ({ valuePack: true, fame: 0, mastery: { cooking: 0, alchemy: 0, processing: 0 } })
 
 export function clampMastery(value) {
   const n = Math.round(Number(value))

@@ -6,7 +6,7 @@ import { FAME_TIERS, useSettings } from '../composables/useSettings.js'
 import { useSettingsPanel } from '../composables/useSettingsPanel.js'
 import { itemRoute } from '../links.js'
 import ItemLink from '../components/ItemLink.vue'
-import { BUY_REASONS, PRICE_SOURCES, SKILLS, ago, compact, number, plural, silver } from '../format.js'
+import { BUY_REASONS, PRICE_SOURCES, SKILLS, ago, compact, duration, number, plural, silver } from '../format.js'
 import ItemIcon from '../components/ItemIcon.vue'
 import RareProducts from '../components/RareProducts.vue'
 import SearchBox from '../components/SearchBox.vue'
@@ -92,12 +92,26 @@ const profit = computed(() => {
   if (!cost || saleValue.value == null || !cost.complete || !cost.stock_value_complete) return null
   return saleValue.value - cost.total - cost.stock_value
 })
+// Silver per hour: only when every crafting step is a processing with a known time
+const perHour = computed(() => {
+  const time = plan.value?.time
+  if (profit.value == null || !time?.complete || !time.processing_seconds) return null
+  return (profit.value / time.processing_seconds) * 3600
+})
 const profitHint = computed(() => {
   if (profit.value == null) {
     if (saleValue.value == null) return 'Not sold on the market'
     return plan.value.cost.stock_value_complete ? 'Needs all prices' : 'Needs prices for your stock'
   }
+  if (perHour.value != null) return `${silver(perHour.value)} per hour of processing`
   return `${silver(profit.value / plan.value.qty)} per item${stockUsed.value ? ' · your stock at market price' : ''}`
+})
+// Processing time of the plan, for the Crafts tile
+const craftsHint = computed(() => {
+  const parts = Object.entries(plan.value.by_source).map(([s, v]) => `${SKILLS[s]} ${number(v.crafts)}`)
+  const seconds = plan.value.time?.processing_seconds
+  if (seconds) parts.push(`≈ ${duration(seconds)} processing`)
+  return parts.join(' · ') || 'Nothing to craft'
 })
 const profitTone = computed(() => (profit.value == null ? null : profit.value >= 0 ? 'positive' : 'negative'))
 const taxRate = computed(() => `${number(rate.value * 100)}%`)
@@ -225,7 +239,7 @@ async function copyMaterials() {
         <StatTile label="Profit" :tone="profitTone" :hint="profitHint">
           <SilverAmount :value="profit" compact />
         </StatTile>
-        <StatTile label="Crafts" :hint="Object.entries(plan.by_source).map(([s, v]) => `${SKILLS[s]} ${number(v.crafts)}`).join(' · ') || 'Nothing to craft'">
+        <StatTile label="Crafts" :hint="craftsHint">
           {{ number(plan.steps.reduce((sum, step) => sum + step.crafts, 0)) }}
         </StatTile>
       </section>
@@ -268,6 +282,10 @@ async function copyMaterials() {
                       <template v-if="step.crafts">
                         <span>{{ plural(step.crafts, 'craft') }}</span>
                         <span class="faint small">≈ {{ number(step.produced) }} made, {{ number(step.needed) }} needed</span>
+                        <!-- Processing: Mass Processes at the player's processing mastery -->
+                        <span v-if="step.time" class="faint small" :title="`Mass Process ≈ 90 s, one by one ≈ 9 s each`">
+                          ≈ {{ duration(step.time.seconds) }}{{ step.time.mass_size ? ` · ${number(step.time.mass_processes)} Mass Process${step.time.mass_processes === 1 ? '' : 'es'} of ${number(step.time.mass_size)}` : ' one by one' }}
+                        </span>
                         <span v-if="step.from_stock" class="stock-text small">{{ number(step.from_stock) }} from your stock</span>
                       </template>
                       <!-- Stock covers it: nothing to craft -->

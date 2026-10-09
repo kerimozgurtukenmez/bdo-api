@@ -114,6 +114,15 @@ function codex_percent(mixed $value): float
     return round((float)str_replace(["%", ","], ["", "."], (string)$value) / 100, 4);
 }
 
+// Rows of query.php?a=processingmastery: [mastery, materials count, better grade chance].
+// The count is how many processings one Mass Process does (10 at 2, 315 at 3000).
+function codex_parse_processing_mastery(array $rows): array
+{
+    $table = array_map(fn($row) => ["mastery" => (int)$row[0], "mass" => (int)$row[1]], $rows);
+    usort($table, fn($a, $b) => $a["mastery"] <=> $b["mastery"]);
+    return $table;
+}
+
 // Rows of query.php?a=cookingmastery / a=alchemymastery, ascending by mastery.
 //   cooking: [mastery, product, byproduct, rare product, mass production, royal trade]
 //   alchemy: [mastery, product, common item, special item, rare item, royal trade]

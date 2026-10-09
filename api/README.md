@@ -121,7 +121,7 @@ the tests are worked out by hand from it.
   - `mastery[cooking]=1500`, `mastery[alchemy]=…` adds the mastery's extra products to cooking / alchemy crafts
   - `have[9059]=30` — units the player already has: used before anything is crafted or bought (an intermediate from stock needs no ingredients). `cost.total` is then what is left to buy; `cost.stock_value` is the stock used at market price, and the profit counts it.
 - `prices.php?item_id=&days=30` — price history, one point per day (`t` = the day at 00:00 UTC)
-- `mastery.php` — cooking and alchemy mastery tables (product, rare, Imperial bonus per 50 mastery)
+- `mastery.php` — cooking and alchemy mastery tables (product, rare, Imperial bonus per 50 mastery) and the processing table (items per Mass Process)
 - `imperial.php?skill=cooking|alchemy` — Imperial delivery boxes with base price and recipes; the NPC pays base price × (2.5 + mastery Imperial bonus)
 
 Every response is JSON; errors are `{"error": "..."}` with a 4xx/5xx status.
@@ -135,5 +135,6 @@ Every response is JSON; errors are `{"error": "..."}` with a 4xx/5xx status.
 - `recipe_outputs.is_main` marks the product a recipe is for. The other outputs of cooking and alchemy recipes are rare products (Cold Draft Beer when making Beer); in processing they are byproducts. The game does not publish the rare chance; the API gives the life skill level it needs, read from the item description (`rare_requirement()`). Rare products are listed in the calculator but not counted in its totals.
 - Recipes without ingredients or products in the scrape (about 230 processing recipes) are skipped.
 - Prices: `item_price()` uses the market base price, or the NPC price for items whose description says a vendor sells them. `item_details.buy_price` alone is not a real price.
-- Yield per craft is the average of the recipe's output range, plus the mastery's extra products for cooking and alchemy. Rare products and processing mastery are not counted.
+- Yield per craft is the average of the recipe's output range, plus the mastery's extra products for cooking and alchemy. Rare products are not counted.
+- Processing mastery does not change products, only how many processings one Mass Process does (`processing_mastery`, 10 at mastery 2 to 315 at 3000). The calculator gives each processing step a time (Mass Process ≈ 90 s, the slow end of 60–90 s; one by one ≈ 9 s) and the plan's processing seconds; profit per hour is shown when every step is a processing.
 - Price history starts the day prices were first updated; it is not backfilled.

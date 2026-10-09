@@ -125,6 +125,13 @@ CREATE TABLE IF NOT EXISTS item_price_history (
     CONSTRAINT fk_price_history_item FOREIGN KEY (item_id) REFERENCES items (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Processing mastery (bdocodex): how many processings one Mass Process does
+CREATE TABLE IF NOT EXISTS processing_mastery (
+    mastery SMALLINT UNSIGNED NOT NULL,
+    mass    SMALLINT UNSIGNED NOT NULL,
+    PRIMARY KEY (mastery)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Last run of each bin/worker.php task, so a restart knows what is due
 CREATE TABLE IF NOT EXISTS worker_runs (
     task        VARCHAR(30)  NOT NULL,

@@ -3,17 +3,21 @@
 
 declare(strict_types=1);
 
-const MASTERY_SKILLS = ["cooking", "alchemy"];
+const MASTERY_SKILLS = ["cooking", "alchemy", "processing"];
 const MAX_MASTERY    = 3000;
 
-// Every table, ascending: ["cooking" => [{mastery, product, rare, imperial}], "alchemy" => [...]]
+// Every table, ascending: ["cooking" => [{mastery, product, rare, imperial}], "alchemy" => [...],
+//                          "processing" => [{mastery, mass}]]
 function mastery_tables(): array
 {
     $tables = array_fill_keys(MASTERY_SKILLS, []);
+    foreach (query("SELECT mastery, mass FROM processing_mastery ORDER BY mastery")->fetchAll() as $row) {
+        $tables["processing"][] = ["mastery" => $row["mastery"], "mass" => $row["mass"]];
+    }
     $rows = query("SELECT skill, mastery, product, rare, imperial FROM mastery_bonuses ORDER BY skill, mastery")->fetchAll();
 
     foreach ($rows as $row) {
-        if (isset($tables[$row["skill"]])) {
+        if (isset($tables[$row["skill"]]) && $row["skill"] !== "processing") {
             $tables[$row["skill"]][] = [
                 "mastery"  => $row["mastery"],
                 "product"  => (float)$row["product"],

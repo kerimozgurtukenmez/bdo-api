@@ -65,6 +65,9 @@ final class CraftCalculatorTest extends TestCase
         $pdo->prepare("INSERT INTO item_details (item_id, description) VALUES (?, ?)")
             ->execute([self::CRUMB, "How to Obtain: Slight chance of obtaining Crumb when making Bread if at least Cooking Skilled 1"]);
 
+        // Processing mastery: 10 processings per Mass Process from 2, 20 from 200
+        $pdo->exec("INSERT INTO processing_mastery (mastery, mass) VALUES (2, 10), (200, 20)");
+
         // Cooking mastery: +50% products from 1000
         $pdo->exec("INSERT INTO mastery_bonuses (skill, mastery, product, rare, imperial) VALUES ('cooking', 0, 0, 0, 0), ('cooking', 1000, 0.5, 0.1, 0.6)");
     }
@@ -111,6 +114,27 @@ final class CraftCalculatorTest extends TestCase
         $this->assertSame(["steps" => 1, "crafts" => 10, "exp" => 4000], $plan["by_source"]["cooking"]);
         $this->assertSame([], $plan["warnings"]);
         $this->assertEqualsWithDelta(time(), $plan["cost"]["prices_updated_at"], 600);  // prices were just inserted
+    }
+
+    public function testProcessingTimeComesFromTheMassProcessSize(): void
+    {
+        $time = fn(array $plan) => array_column(array_map(fn($s) => [$s["item"]["name"], $s["time"]], $plan["steps"]), 1, 0);
+
+        // Bread 10: Flour 8 processings, Dough 15; Bread is cooking (no time known)
+        $slow = $this->plan(self::BREAD, 10);
+        $this->assertSame(["mass_size" => null, "mass_processes" => 0, "seconds" => 72], $time($slow)["Flour"]);
+        $this->assertNull($time($slow)["Bread"]);
+        $this->assertSame(["processing_seconds" => 207, "complete" => false], $slow["time"]);
+
+        // Mastery 200: 20 per Mass Process (90 s). 8 Flour stay single (72 s < 90 s),
+        // 15 Dough are faster as one Mass Process
+        $fast = $this->plan(self::BREAD, 10, ["mastery" => ["processing" => 250]]);
+        $this->assertSame(["mass_size" => 20, "mass_processes" => 0, "seconds" => 72], $time($fast)["Flour"]);
+        $this->assertSame(["mass_size" => 20, "mass_processes" => 1, "seconds" => 90], $time($fast)["Dough"]);
+
+        // Only processing: the time is complete (silver per hour can be worked out)
+        $flour = $this->plan(self::FLOUR, 40, ["mastery" => ["processing" => 200]]);
+        $this->assertSame(["processing_seconds" => 90, "complete" => true], $flour["time"]);
     }
 
     public function testStockIsUsedBeforeCraftingOrBuying(): void

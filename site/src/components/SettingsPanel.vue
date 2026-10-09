@@ -54,7 +54,7 @@ function setMastery(skill, value) {
 
       <section class="group">
         <h3>Mastery <SampleBadge v-if="isSample" /></h3>
-        <p class="help">More products per craft and a higher Imperial delivery payout. Processing mastery does not change yields.</p>
+        <p class="help">Cooking and alchemy: more products per craft and a higher Imperial delivery payout. Processing: more items per Mass Process, so processing takes less time (the products stay the same).</p>
         <div v-for="skill in MASTERY_SKILLS" :key="skill" class="mastery">
           <label class="mastery-label" :for="`mastery-${skill}`">
             <span class="dot" :style="{ background: `var(--${skill})` }" aria-hidden="true"></span>{{ SKILLS[skill] }}
@@ -81,8 +81,16 @@ function setMastery(skill, value) {
             />
           </div>
           <p v-if="bonus(skill, settings.mastery[skill])" class="faint small num">
-            +{{ percent(bonus(skill, settings.mastery[skill]).product) }} products ·
-            +{{ percent(bonus(skill, settings.mastery[skill]).imperial) }} Imperial delivery
+            <!-- Mass Process starts at the table's first row (mastery 2) -->
+            <template v-if="skill === 'processing'">
+              {{ settings.mastery.processing >= bonus(skill, settings.mastery.processing).mastery
+                ? `${bonus(skill, settings.mastery.processing).mass} items per Mass Process`
+                : 'No Mass Process yet: one item at a time' }}
+            </template>
+            <template v-else>
+              +{{ percent(bonus(skill, settings.mastery[skill]).product) }} products ·
+              +{{ percent(bonus(skill, settings.mastery[skill]).imperial) }} Imperial delivery
+            </template>
           </p>
         </div>
       </section>

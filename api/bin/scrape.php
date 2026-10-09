@@ -40,6 +40,7 @@ const DATASETS = [
     "processing"      => ["a=mrecipes&id=1",              "/mrecipes/",         5000],
     "mastery_cooking" => ["a=cookingmastery",             "/cookingmastery/",   50],
     "mastery_alchemy" => ["a=alchemymastery",             "/alchemymastery/",   50],
+    "mastery_processing" => ["a=processingmastery",       "/processingmastery/", 50],
 ];
 
 // Recipe categories whose products are delivered for silver
@@ -117,6 +118,7 @@ foreach (array_keys(DATASETS) as $name) {
     $rows = fetchRows($name, $refresh);
     $parsed[$name] = match (true) {
         $name === "items"                  => codex_parse_items($rows),
+        $name === "mastery_processing"     => codex_parse_processing_mastery($rows),
         str_starts_with($name, "mastery_") => codex_parse_mastery($rows, substr($name, 8)),
         default                            => codex_parse_recipes($rows, $name),
     };
@@ -210,8 +212,9 @@ foreach ($files as $name => $file) {
     printf("  %-24s %s\n", $file, $summary);
 }
 
-writeJson("mastery.json", ["cooking" => $parsed["mastery_cooking"], "alchemy" => $parsed["mastery_alchemy"]]);
-printf("  %-24s %d cooking + %d alchemy rows\n", "mastery.json", count($parsed["mastery_cooking"]), count($parsed["mastery_alchemy"]));
+writeJson("mastery.json", ["cooking" => $parsed["mastery_cooking"], "alchemy" => $parsed["mastery_alchemy"], "processing" => $parsed["mastery_processing"]]);
+printf("  %-24s %d cooking + %d alchemy + %d processing rows\n", "mastery.json",
+    count($parsed["mastery_cooking"]), count($parsed["mastery_alchemy"]), count($parsed["mastery_processing"]));
 
 $summary = changes(DATA_DIR . "/item_pages.json", array_values($itemPages), fn($r) => [$r["buy_price"], $r["sell_price"]]);
 writeJson("item_pages.json", array_values($itemPages));

@@ -8,7 +8,8 @@
 //     &recipe[9003]=cooking:106      use this recipe for an item (see recipes.php?grouped=1)
 //     &buy=9017,9018  or  buy[]=9017 buy these items instead of crafting them
 //     &substitute[7313]=7304         use a substitute ingredient wherever it is allowed
-//     &mastery[cooking]=1500         mastery adds products to cooking / alchemy crafts (0–3000)
+//     &mastery[cooking]=1500         mastery adds products to cooking / alchemy crafts (0–3000);
+//                                    mastery[processing] sets the Mass Process size (processing time)
 //     &have[9059]=30                 units the player already has; used before crafting or buying
 //
 // Response: materials to buy, crafting steps in order, total cost and the full

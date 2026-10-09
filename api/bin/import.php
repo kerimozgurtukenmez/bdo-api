@@ -283,11 +283,20 @@ $mastery = readJson("mastery.json", optional: true);
 if ($mastery) {
     $pdo->exec("DELETE FROM mastery_bonuses");
     $stmt = $pdo->prepare("INSERT INTO mastery_bonuses (skill, mastery, product, rare, imperial) VALUES (?, ?, ?, ?, ?)");
-    foreach ($mastery as $skill => $rows) {
+    foreach (array_diff_key($mastery, ["processing" => 0]) as $skill => $rows) {
         foreach ($rows as $row) {
             $stmt->execute([$skill, $row["mastery"], $row["product"], $row["rare"], $row["imperial"]]);
         }
         step("  $skill: " . count($rows) . " rows");
+    }
+
+    if (isset($mastery["processing"])) {
+        $pdo->exec("DELETE FROM processing_mastery");
+        $stmt = $pdo->prepare("INSERT INTO processing_mastery (mastery, mass) VALUES (?, ?)");
+        foreach ($mastery["processing"] as $row) {
+            $stmt->execute([$row["mastery"], $row["mass"]]);
+        }
+        step("  processing: " . count($mastery["processing"]) . " rows");
     }
 }
 

@@ -24,6 +24,16 @@ export function plural(count, word) {
   return `${number(count)} ${count === 1 ? word : `${word}s`}`
 }
 
+/** "45 s", "12 min", "3 h 5 min" — a duration in seconds */
+export function duration(seconds) {
+  if (seconds == null) return '—'
+  if (seconds < 60) return `${Math.round(seconds)} s`
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return `${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  return minutes % 60 ? `${hours} h ${minutes % 60} min` : `${hours} h`
+}
+
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
 
 /** "5 minutes ago", "yesterday" — from a Unix time in seconds */

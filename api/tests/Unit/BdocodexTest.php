@@ -9,6 +9,14 @@ use PHPUnit\Framework\TestCase;
 // Parses real rows saved from bdocodex (tests/fixtures/bdocodex_rows.json)
 final class BdocodexTest extends TestCase
 {
+    public function testProcessingMasteryTable(): void
+    {
+        $this->assertSame(
+            [["mastery" => 2, "mass" => 10], ["mastery" => 200, "mass" => 20]],
+            codex_parse_processing_mastery([[200, 20, "50.00%"], [2, 10, "0.00%"]])
+        );
+    }
+
     private static array $rows;
 
     public static function setUpBeforeClass(): void

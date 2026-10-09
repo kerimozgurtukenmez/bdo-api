@@ -18,6 +18,14 @@ final class CraftCalculator
     public const MAX_DEPTH      = 15;
     public const MAX_TREE_NODES = 2000;
 
+    // Processing time. One Mass Process (with a processing stone) does as many
+    // processings as the processing mastery allows and takes 60–90 s; the slow
+    // end is used so silver per hour is never overstated. Without it every
+    // processing takes ~9 s. Mastery does not change the products.
+    public const MASS_PROCESS_SECONDS   = 90;
+    public const SINGLE_PROCESS_SECONDS = 9;
+    private const MASS_PROCESS_CATEGORIES = ["Heating", "Grinding", "Chopping", "Drying", "Filtering", "Shaking", "Simple Cooking", "Simple Alchemy"];
+
     // Tie-break between sources when an item has recipes in several of them
     private const SOURCE_RANK = ["cooking" => 0, "alchemy" => 0, "processing" => 1];
 
@@ -34,6 +42,7 @@ final class CraftCalculator
     private array $cycleItems = [];  // items bought because their recipe would loop
     private array $substituted = []; // default item ids a substitute was used for
     private array $productBonus = []; // life skill => extra products per craft from mastery
+    private ?int  $massSize   = null; // processings per Mass Process at the player's mastery (0: none)
     private array $rare       = [];  // "source:id" => rare products of a chosen recipe
     private array $treeStock  = [];  // item id => units of stock the tree has not used yet
     private array $warnings   = [];
@@ -130,6 +139,11 @@ final class CraftCalculator
                 "profit" => $value !== null && !$missing && $stockValueComplete ? $value - $cost - $stockValue : null,
             ],
             "by_source" => $this->bySource($steps),
+            // Seconds of processing; complete when every crafting step is a processing with a known time
+            "time" => [
+                "processing_seconds" => array_sum(array_map(fn($s) => $s["time"]["seconds"] ?? 0, $steps)),
+                "complete"           => $steps && !array_filter($steps, fn($s) => $s["crafts"] > 0 && $s["time"] === null),
+            ],
             "materials" => $materials,
             "steps"     => $steps,
             "tree"      => $tree,
@@ -337,6 +351,35 @@ final class CraftCalculator
         }
     }
 
+    // How long the crafts of a processing step take: full Mass Processes, and
+    // the rest one by one or as one more Mass Process, whichever is faster.
+    // null for cooking, alchemy and processing without Mass Process (packing, manufacture).
+    private function processingTime(array $recipe, int $crafts): ?array
+    {
+        if ($recipe["source"] !== "processing" || !in_array($recipe["category"], self::MASS_PROCESS_CATEGORIES, true)) {
+            return null;
+        }
+
+        if ($this->massSize === null) {
+            $stmt = $this->pdo->prepare("SELECT mass FROM processing_mastery WHERE mastery <= ? ORDER BY mastery DESC LIMIT 1");
+            $stmt->execute([(int)($this->mastery["processing"] ?? 0)]);
+            $this->massSize = (int)$stmt->fetchColumn();
+        }
+
+        $mass = $this->massSize;
+        if ($mass === 0) {
+            return ["mass_size" => null, "mass_processes" => 0, "seconds" => $crafts * self::SINGLE_PROCESS_SECONDS];
+        }
+        $full = intdiv($crafts, $mass);
+        $rest = $crafts % $mass;
+        $restSeconds = min(self::MASS_PROCESS_SECONDS, $rest * self::SINGLE_PROCESS_SECONDS);
+        return [
+            "mass_size"      => $mass,
+            "mass_processes" => $full + ($rest > 0 && $restSeconds === self::MASS_PROCESS_SECONDS ? 1 : 0),
+            "seconds"        => $full * self::MASS_PROCESS_SECONDS + $restSeconds,
+        ];
+    }
+
     // Extra products per craft at the player's mastery (bdocodex mastery table)
     private function productBonus(string $source): float
     {
@@ -410,6 +453,7 @@ final class CraftCalculator
                 "crafts"   => $crafts,
                 "produced" => round($crafts * $recipe["yield"], 2),
                 "exp"      => $recipe["exp"] !== null ? $crafts * $recipe["exp"] : null,
+                "time"     => $this->processingTime($recipe, $crafts),
             ];
         }
 
