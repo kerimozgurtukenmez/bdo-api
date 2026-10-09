@@ -1,5 +1,5 @@
-# Database dumps and backups
-*.sql
+# Database dumps and backups (database/schema.sql is code and stays)
+/*.sql
 
 # Private notes, kept out of the public repository
 CLAUDE.md

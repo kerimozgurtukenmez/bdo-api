@@ -27,11 +27,17 @@ $pdo   = db();
 $start = microtime(true);
 $warnings = [];
 
-function readJson(string $filename): array
+// The data files are not in git: scrape.php writes items.json and the
+// recipes; item_descriptions.json and raw_item_prices.json are optional extras.
+function readJson(string $filename, bool $optional = false): array
 {
     $path = __DIR__ . "/" . $filename;
     if (!is_file($path)) {
-        throw new RuntimeException("$filename not found");
+        if ($optional) {
+            step("  $filename not found, skipped");
+            return [];
+        }
+        throw new RuntimeException("$filename not found - run import/scrape.php first");
     }
 
     $data = json_decode(file_get_contents($path), true);
@@ -109,7 +115,7 @@ $stmt = $pdo->prepare("
 ");
 
 $count = $vendors = 0;
-foreach (readJson("item_descriptions.json") as $item) {
+foreach (readJson("item_descriptions.json", optional: true) as $item) {
     if (!isset($itemNames[$item["id"]])) {
         $warnings[] = "item_details: unknown item {$item['id']}";
         continue;
@@ -146,7 +152,7 @@ $stmt = $pdo->prepare("
 ");
 
 $count = 0;
-foreach (readJson("raw_item_prices.json") as $item) {
+foreach (readJson("raw_item_prices.json", optional: true) as $item) {
     if (!isset($itemNames[$item["id"]])) {
         continue;
     }

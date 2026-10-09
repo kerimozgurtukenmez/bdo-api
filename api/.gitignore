@@ -1,5 +1,9 @@
 config/config.local.php
+
+# Data: bdocodex JSON (import/scrape.php), its download cache and icons
+import/*.json
 import/cache/
 public/icons/
+
 vendor/
 .phpunit.cache/

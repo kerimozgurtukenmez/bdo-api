@@ -9,10 +9,15 @@ item into every material and crafting step needed to make it.
 ```bash
 sudo /opt/lampp/lampp start
 /opt/lampp/bin/mysql -uroot -e "CREATE DATABASE bdo_craft CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
-/opt/lampp/bin/php import/import.php --fresh   # schema + bdocodex data (~10s)
+/opt/lampp/bin/php import/scrape.php           # bdocodex data → import/*.json (4 requests)
+/opt/lampp/bin/php import/import.php --fresh   # schema + data (~10s)
 /opt/lampp/bin/php import/update_prices.php    # market prices (minutes; rerun if blocked)
 /opt/lampp/bin/php import/download_icons.php   # item icons (hours: the source throttles; rerun to resume)
 ```
+
+The data files (`import/*.json`), icons and database dumps are not in git.
+`item_descriptions.json` and `raw_item_prices.json` (item details, seed prices)
+cannot be re-scraped yet; the importer skips them when they are missing.
 
 Settings live in `config/config.php`; put machine-specific overrides in
 `config/config.local.php` (git-ignored). The environment variables
