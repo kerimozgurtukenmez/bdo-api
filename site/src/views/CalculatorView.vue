@@ -1,6 +1,7 @@
 <script setup>
 import { computed, provide, ref, watch } from 'vue'
 import { useCraftPlan } from '../composables/useCraftPlan.js'
+import { FAME_TIERS, useSellerSettings } from '../composables/useSellerSettings.js'
 import { BUY_REASONS, PRICE_SOURCES, SKILLS, number, plural, silver } from '../format.js'
 import ItemIcon from '../components/ItemIcon.vue'
 import SearchBox from '../components/SearchBox.vue'
@@ -11,6 +12,7 @@ import StatTile from '../components/StatTile.vue'
 import TreeNode from '../components/TreeNode.vue'
 
 const { settings, update, plan, loading, error, actions, hasChoices, reload } = useCraftPlan()
+const { seller, rate, afterTax } = useSellerSettings()
 
 provide('planActions', actions)
 provide('boughtByChoice', computed(() => new Set(settings.value.buy)))
@@ -56,11 +58,14 @@ const yieldMode = computed({ get: () => settings.value.yield, set: (value) => up
 // ── Derived views of the plan ──────────────────────────────────────────
 const rootRecipe = computed(() => plan.value?.tree?.recipe ?? null)
 
-const profitTone = computed(() => {
-  const profit = plan.value?.market_value.profit
-  if (profit == null) return null
-  return profit >= 0 ? 'positive' : 'negative'
+// Selling on the Central Market: what is kept after tax, and the profit on it
+const saleValue = computed(() => afterTax(plan.value?.market_value.total))
+const profit = computed(() => {
+  if (!plan.value || saleValue.value == null || !plan.value.cost.complete) return null
+  return saleValue.value - plan.value.cost.total
 })
+const profitTone = computed(() => (profit.value == null ? null : profit.value >= 0 ? 'positive' : 'negative'))
+const taxRate = computed(() => `${number(rate.value * 100)}%`)
 
 // Crafting steps grouped by life skill, in crafting order within each group
 const stepGroups = computed(() => {
@@ -155,6 +160,22 @@ async function copyMaterials() {
             <SegmentedControl v-model="yieldMode" :options="YIELDS" label="Products per craft" />
             <p class="help">Recipes give a range (e.g. 1–4). Average is a fair estimate.</p>
           </div>
+          <div class="option">
+            <span class="label">Selling</span>
+            <div class="selling">
+              <label class="check">
+                <input v-model="seller.valuePack" type="checkbox" />
+                Value Pack
+              </label>
+              <label class="fame">
+                <span class="visually-hidden">Family fame</span>
+                <select v-model.number="seller.fame" class="select" aria-label="Family fame">
+                  <option v-for="tier in FAME_TIERS" :key="tier.bonus" :value="tier.bonus">Fame {{ tier.label }}</option>
+                </select>
+              </label>
+            </div>
+            <p class="help">You keep {{ taxRate }} of a market sale.</p>
+          </div>
         </div>
       </section>
 
@@ -163,11 +184,11 @@ async function copyMaterials() {
         <StatTile label="Total cost" :hint="`${silver(plan.cost.per_unit)} per item`" :tone="plan.cost.complete ? null : 'warning'">
           <SilverAmount :value="plan.cost.total" compact />
         </StatTile>
-        <StatTile label="Market value" :hint="plan.market_value.unit ? `${silver(plan.market_value.unit)} each` : 'Not sold on the market'">
-          <SilverAmount :value="plan.market_value.total" compact />
+        <StatTile label="Sale value" :hint="plan.market_value.unit ? `After tax · ${silver(plan.market_value.unit)} each on the market` : 'Not sold on the market'">
+          <SilverAmount :value="saleValue" compact />
         </StatTile>
-        <StatTile label="Profit" :tone="profitTone" :hint="plan.market_value.profit == null ? 'Needs all prices' : 'Before market tax'">
-          <SilverAmount :value="plan.market_value.profit" compact />
+        <StatTile label="Profit" :tone="profitTone" :hint="profit == null ? (saleValue == null ? 'Not sold on the market' : 'Needs all prices') : `${silver(profit / plan.qty)} per item`">
+          <SilverAmount :value="profit" compact />
         </StatTile>
         <StatTile label="Crafts" :hint="Object.entries(plan.by_source).map(([s, v]) => `${SKILLS[s]} ${number(v.crafts)}`).join(' · ') || 'Nothing to craft'">
           {{ number(plan.steps.reduce((sum, step) => sum + step.crafts, 0)) }}
@@ -381,7 +402,7 @@ async function copyMaterials() {
 
 .options {
   display: grid;
-  grid-template-columns: auto 1fr 1fr;
+  grid-template-columns: auto 1fr 1fr auto;
   gap: var(--space-5);
   margin-top: var(--space-5);
   padding-top: var(--space-5);
@@ -392,6 +413,27 @@ async function copyMaterials() {
   margin-top: var(--space-2);
   color: var(--text-faint);
   font-size: var(--text-xs);
+}
+
+.selling {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
 }
 
 .qty-field {
