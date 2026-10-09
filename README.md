@@ -20,6 +20,7 @@ Settings live in `config/config.php`; put machine-specific overrides in
 
 | Command | What it does |
 | --- | --- |
+| `import/scrape.php` | Downloads items and recipes from bdocodex (4 requests, cached for a day; `--refresh` to force) and rewrites the JSON files in `import/`, printing what changed. Run after a game patch, then `import.php`. |
 | `import/import.php` | Re-imports the JSON files in `import/`. Recipes are replaced, items updated, existing prices kept. |
 | `import/import.php --fresh` | Drops and recreates all tables from `database/schema.sql` first. Needed after schema changes. |
 | `import/update_prices.php` | Fetches prices from arsha.io for every recipe item not updated in the last hour. The market API blocks fast clients now and then; failed batches are retried on the next run. `--force` refreshes everything, or pass item ids. |
