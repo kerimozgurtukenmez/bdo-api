@@ -47,6 +47,7 @@ function recipe_slots(array $recipes, bool $withAlternatives = true): array
         $key  = "{$row['recipe_source']}:{$row['recipe_id']}";
         $slot = $row["slot"];
         $item = with_price($row);
+        $item["icon"] = icon_url($item["icon"]);
         unset($item["recipe_source"], $item["recipe_id"], $item["slot"], $item["is_alternative"]);
 
         if (!$row["is_alternative"]) {
@@ -90,6 +91,7 @@ function recipe_outputs(array $recipes): array
     foreach ($rows as $row) {
         $key = "{$row['recipe_source']}:{$row['recipe_id']}";
         $out = with_price($row);
+        $out["icon"] = icon_url($out["icon"]);
         $out["is_main"] = (bool)$out["is_main"];
         unset($out["recipe_source"], $out["recipe_id"]);
         $result[$key][] = $out;
@@ -102,6 +104,9 @@ function recipe_outputs(array $recipes): array
 function format_recipe(array $recipe): array
 {
     $recipe = ["key" => recipe_key($recipe)] + $recipe;
+    if (array_key_exists("icon", $recipe)) {
+        $recipe["icon"] = icon_url($recipe["icon"]);
+    }
     if (array_key_exists("ingredients_weight", $recipe) && $recipe["ingredients_weight"] !== null) {
         $recipe["ingredients_weight"] = (float)$recipe["ingredients_weight"];
     }

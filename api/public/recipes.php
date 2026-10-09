@@ -81,7 +81,7 @@ if ($itemId !== null && param_bool("grouped")) {
     }
 
     json_out([
-        "output_item"   => with_price($item),
+        "output_item"   => ["icon" => icon_url($item["icon"])] + with_price($item),
         "total_recipes" => count($recipes),
         "default"       => $recipes ? recipe_key($recipes[0]) : null,
         "groups"        => array_values($groups),

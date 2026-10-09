@@ -31,6 +31,7 @@ if ($id !== null) {
     }
 
     $item = with_price($item, keepRaw: true);
+    $item["icon"] = icon_url($item["icon"]);
 
     // Recipes this item is the main product of
     $item["made_by"] = query("
@@ -94,7 +95,7 @@ $items = array_map(fn($row) => [
     "name"       => $row["name"],
     "grade"      => $row["grade"],
     "grade_name" => $row["grade_name"],
-    "icon"       => $row["icon"],
+    "icon"       => icon_url($row["icon"]),
     "sources"    => $row["sources"] ? explode(",", $row["sources"]) : [],  // life skills that make it
     "price"      => item_price($row),
 ], $rows);

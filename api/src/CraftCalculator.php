@@ -510,7 +510,7 @@ final class CraftCalculator
             "name"       => $item["name"],
             "grade"      => $item["grade"],
             "grade_name" => $item["grade_name"],
-            "icon"       => $item["icon"],
+            "icon"       => icon_url($item["icon"]),
         ];
     }
 

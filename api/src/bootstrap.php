@@ -199,6 +199,25 @@ function like_contains(string $value): string
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Icons
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Icons are stored as their path on the source site ("items/new_icon/....webp").
+// Served from our own copy when it has been downloaded.
+function icon_url(?string $path): ?string
+{
+    if ($path === null || $path === "") {
+        return null;
+    }
+
+    $icons = config("icons");
+    if (is_file($icons["dir"] . "/" . $path)) {
+        return $icons["url"] . "/" . $path;
+    }
+    return $icons["source"] . "/" . $path;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Prices
 // ─────────────────────────────────────────────────────────────────────────────
 

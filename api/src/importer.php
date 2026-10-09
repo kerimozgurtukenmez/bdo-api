@@ -13,6 +13,18 @@ function is_vendor_sold(?string $description): bool
     return (bool)preg_match(VENDOR_PATTERN, $description ?? "");
 }
 
+// Icons are stored by their path on the source site, so they can be served
+// from our own copy or the source (see icon_url()).
+function icon_path(?string $url): ?string
+{
+    if ($url === null || $url === "") {
+        return null;
+    }
+
+    $source = rtrim(config("icons")["source"], "/") . "/";
+    return str_starts_with($url, $source) ? substr($url, strlen($source)) : $url;
+}
+
 // Create missing tables from database/schema.sql
 function apply_schema(PDO $pdo): void
 {

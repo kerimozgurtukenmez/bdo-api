@@ -84,7 +84,7 @@ foreach (readJson("items.json") as $item) {
         trim($item["name"]),
         $item["grade"] ?? 0,
         $item["grade_name"] ?? null,
-        $item["icon"] ?? null,
+        icon_path($item["icon"] ?? null),
         $item["link"] ?? null,
     ]);
     $itemNames[$item["id"]] = trim($item["name"]);
@@ -227,7 +227,7 @@ foreach (RECIPE_SOURCES as $source) {
             $recipe["category"],
             $recipe["grade"] ?? 0,
             $recipe["grade_name"] ?? null,
-            $recipe["icon"] ?? null,
+            icon_path($recipe["icon"] ?? null),
             $recipe["link"] ?? null,
             $recipe["skill_level"] ?? null,
             $recipe["skill_sort"] ?? 0,
