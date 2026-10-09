@@ -3,6 +3,7 @@ import { computed, inject, ref } from 'vue'
 import { api } from '../api.js'
 import { BUY_REASONS, number, plural, silver } from '../format.js'
 import ItemIcon from './ItemIcon.vue'
+import ItemLink from './ItemLink.vue'
 import SilverAmount from './SilverAmount.vue'
 import SkillChip from './SkillChip.vue'
 
@@ -78,7 +79,7 @@ function pick(key) {
 
       <div class="main">
         <div class="title">
-          <span class="name" :class="`grade-${node.item.grade}`">{{ node.item.name }}</span>
+          <ItemLink :item="node.item" class="name" />
           <span class="qty num">× {{ number(node.qty) }}</span>
           <!-- Raw materials are the normal case; only other reasons get a badge -->
           <span v-if="!isCraft && node.reason !== 'no_recipe'" class="badge" :class="{ 'badge-warning': node.reason === 'loop' }">

@@ -1,6 +1,16 @@
 // Every request to the BDO Craft API goes through here.
+//
+// Endpoints the API does not have yet are served by src/mocks/ while they are
+// listed in VITE_API_MOCKS (comma separated, e.g. "prices,mastery,imperial").
+// The mock files define the response shape the API has to implement.
 
 const BASE = import.meta.env.VITE_API_BASE
+const MOCKED = new Set(
+  String(import.meta.env.VITE_API_MOCKS ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean),
+)
 
 export class ApiError extends Error {
   constructor(message, status) {
@@ -29,6 +39,16 @@ function buildUrl(path, params) {
 }
 
 async function get(path, params = {}, signal) {
+  const endpoint = path.replace(/\.php$/, '')
+  if (MOCKED.has(endpoint)) {
+    const { mock } = await import('./mocks/index.js')
+    // Mocks may build on endpoints that already exist
+    return mock(endpoint, params, (realPath, realParams) => request(realPath, realParams, signal))
+  }
+  return request(path, params, signal)
+}
+
+async function request(path, params, signal) {
   let response
   try {
     response = await fetch(buildUrl(path, params), { signal })
@@ -48,6 +68,12 @@ export const api = {
   /** Items that some recipe makes, best name matches first */
   searchCraftable: (search, signal) => get('items.php', { search, craftable: 1, limit: 8 }, signal),
 
+  /** One item: details, market data, recipes that make it, how many recipes use it */
+  item: (id, signal) => get('items.php', { id }, signal),
+
+  /** Market price history of an item. Contract: src/mocks/prices.js */
+  priceHistory: (itemId, days, signal) => get('prices.php', { item_id: itemId, days }, signal),
+
   /** Full crafting plan, see api/public/craft.php for the parameters */
   craft: (params, signal) => get('craft.php', params, signal),
 
@@ -59,4 +85,10 @@ export const api = {
 
   /** Recipe categories per life skill */
   categories: (signal) => get('recipes.php', { categories: 1 }, signal),
+
+  /** Mastery bonus tables for cooking and alchemy. Contract: src/mocks/mastery.js */
+  mastery: (signal) => get('mastery.php', {}, signal),
+
+  /** Imperial delivery boxes of a life skill. Contract: src/mocks/imperial.js */
+  imperial: (skill, signal) => get('imperial.php', { skill }, signal),
 }

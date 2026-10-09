@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api.js'
+import { useSettings } from './useSettings.js'
 
 // Calculator settings live in the URL, so every plan is a shareable link:
 //   ?item=9003&qty=10&mode=cheapest&yield=min
@@ -54,6 +55,7 @@ function toQuery(s) {
 export function useCraftPlan() {
   const route = useRoute()
   const router = useRouter()
+  const { settings: player } = useSettings()
 
   const settings = computed(() => parseQuery(route.query))
 
@@ -98,6 +100,8 @@ export function useCraftPlan() {
       buy: s.buy,
       recipe: s.recipe,
       substitute: s.sub,
+      // A player setting, not part of the shared link
+      mastery: { ...player.mastery },
     }
   })
 

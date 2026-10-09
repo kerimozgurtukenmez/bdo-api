@@ -36,6 +36,11 @@
 
   --shadow-float: 0 12px 32px rgb(0 0 0 / 0.45), 0 2px 6px rgb(0 0 0 / 0.3);
 
+  /* Charts: single-series hue validated against --surface (dataviz validator) */
+  --chart-1: #3987e5;
+  --chart-1-wash: rgb(57 135 229 / 0.1);
+  --chart-grid: var(--border);
+
   --font: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --text-xs: 12px;
   --text-sm: 13px;
@@ -98,6 +103,9 @@
   --grade-4: #c8611f;
 
   --shadow-float: 0 12px 32px rgb(20 30 45 / 0.14), 0 2px 6px rgb(20 30 45 / 0.08);
+
+  --chart-1: #2a78d6;
+  --chart-1-wash: rgb(42 120 214 / 0.1);
 
   color-scheme: light;
 }

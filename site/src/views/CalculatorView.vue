@@ -1,7 +1,10 @@
 <script setup>
 import { computed, provide, ref, watch } from 'vue'
 import { useCraftPlan } from '../composables/useCraftPlan.js'
-import { FAME_TIERS, useSellerSettings } from '../composables/useSellerSettings.js'
+import { FAME_TIERS, useSettings } from '../composables/useSettings.js'
+import { useSettingsPanel } from '../composables/useSettingsPanel.js'
+import { itemRoute } from '../links.js'
+import ItemLink from '../components/ItemLink.vue'
 import { BUY_REASONS, PRICE_SOURCES, SKILLS, ago, number, plural, silver } from '../format.js'
 import ItemIcon from '../components/ItemIcon.vue'
 import SearchBox from '../components/SearchBox.vue'
@@ -12,7 +15,14 @@ import StatTile from '../components/StatTile.vue'
 import TreeNode from '../components/TreeNode.vue'
 
 const { settings, update, plan, loading, error, actions, hasChoices, reload } = useCraftPlan()
-const { seller, rate, afterTax } = useSellerSettings()
+const { settings: playerSettings, rate, afterTax } = useSettings()
+const { openSettings } = useSettingsPanel()
+
+const fameLabel = computed(() => FAME_TIERS.find((tier) => tier.bonus === playerSettings.fame)?.label)
+const rootMastery = computed(() => {
+  const source = rootRecipe.value?.source
+  return source && source in playerSettings.mastery ? { skill: source, value: playerSettings.mastery[source] } : null
+})
 
 provide('planActions', actions)
 provide('boughtByChoice', computed(() => new Set(settings.value.buy)))
@@ -134,7 +144,7 @@ async function copyMaterials() {
         <div class="item-head">
           <ItemIcon :item="plan.item" :size="52" />
           <div class="item-title">
-            <h1 :class="`grade-${plan.item.grade}`">{{ plan.item.name }}</h1>
+            <h1><RouterLink :to="itemRoute(plan.item)" :class="`grade-${plan.item.grade}`" class="title-link">{{ plan.item.name }}</RouterLink></h1>
             <div class="item-meta">
               <SkillChip v-if="rootRecipe" :source="rootRecipe.source" :category="rootRecipe.category" />
               <span v-if="rootRecipe?.skill_level" class="faint">{{ rootRecipe.skill_level }}</span>
@@ -165,20 +175,12 @@ async function copyMaterials() {
             <p class="help">Recipes give a range (e.g. 1–4). Average is a fair estimate.</p>
           </div>
           <div class="option">
-            <span class="label">Selling</span>
-            <div class="selling">
-              <label class="check">
-                <input v-model="seller.valuePack" type="checkbox" />
-                Value Pack
-              </label>
-              <label class="fame">
-                <span class="visually-hidden">Family fame</span>
-                <select v-model.number="seller.fame" class="select" aria-label="Family fame">
-                  <option v-for="tier in FAME_TIERS" :key="tier.bonus" :value="tier.bonus">Fame {{ tier.label }}</option>
-                </select>
-              </label>
-            </div>
-            <p class="help">You keep {{ taxRate }} of a market sale.</p>
+            <span class="label">Your settings</span>
+            <ul class="player">
+              <li>{{ playerSettings.valuePack ? 'Value Pack' : 'No Value Pack' }} · fame {{ fameLabel }} · keep {{ taxRate }}</li>
+              <li v-if="rootMastery">{{ SKILLS[rootMastery.skill] }} mastery {{ number(rootMastery.value) }}</li>
+            </ul>
+            <button class="btn btn-ghost btn-sm change" type="button" @click="openSettings">Change</button>
           </div>
         </div>
       </section>
@@ -229,7 +231,7 @@ async function copyMaterials() {
                   <li v-for="step in group.list" :key="step.item.id" class="step">
                     <ItemIcon :item="step.item" :size="28" />
                     <div class="step-text">
-                      <span :class="`grade-${step.item.grade}`">{{ step.item.name }}</span>
+                      <ItemLink :item="step.item" />
                       <span class="faint small">{{ step.recipe.category }}</span>
                     </div>
                     <div class="step-numbers num">
@@ -277,7 +279,7 @@ async function copyMaterials() {
                     <div class="material-item">
                       <ItemIcon :item="m.item" :size="28" />
                       <div>
-                        <div class="material-name" :class="`grade-${m.item.grade}`">{{ m.item.name }}</div>
+                        <ItemLink :item="m.item" class="material-name" />
                         <div class="faint small">
                           <template v-if="m.price">{{ silver(m.price.unit) }} · {{ PRICE_SOURCES[m.price.source] }}</template>
                           <template v-else>No price</template>
@@ -422,25 +424,21 @@ async function copyMaterials() {
   font-size: var(--text-xs);
 }
 
-.selling {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-}
-
-.check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-2);
+.player {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
   font-size: var(--text-sm);
-  cursor: pointer;
 }
 
-.check input {
-  width: 16px;
-  height: 16px;
-  accent-color: var(--accent);
+.change {
+  margin: var(--space-1) 0 0 calc(-1 * var(--space-3));
+}
+
+.title-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
 }
 
 .qty-field {
