@@ -281,7 +281,7 @@ async function copyMaterials() {
                         <div class="faint small">
                           <template v-if="m.price">{{ silver(m.price.unit) }} · {{ PRICE_SOURCES[m.price.source] }}</template>
                           <template v-else>No price</template>
-                          <template v-if="m.reason !== 'no_recipe'"> · {{ BUY_REASONS[m.reason] }}</template>
+                          <template v-if="!['no_recipe', 'vendor'].includes(m.reason)"> · {{ BUY_REASONS[m.reason] }}</template>
                         </div>
                       </div>
                     </div>
