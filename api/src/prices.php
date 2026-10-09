@@ -18,6 +18,28 @@ function price_history(int $itemId, int $days): array
 }
 
 // Today's price of the given items, from item_prices (run after a price update)
+// The market state of this hour, for the trades-per-hour of items
+function record_market_snapshot(array $itemIds): int
+{
+    if (!$itemIds) {
+        return 0;
+    }
+
+    $ids = array_values(array_map("intval", $itemIds));
+    return query("
+        INSERT INTO item_market_snapshots (item_id, hour, price, stock, total_trades)
+        SELECT item_id, DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00'), base_price, current_stock, total_trades
+        FROM item_prices
+        WHERE base_price > 0 AND item_id IN (" . placeholders($ids) . ")
+        ON DUPLICATE KEY UPDATE price = VALUES(price), stock = VALUES(stock), total_trades = VALUES(total_trades)
+    ", $ids)->rowCount();
+}
+
+function prune_market_snapshots(int $days = 14): int
+{
+    return query("DELETE FROM item_market_snapshots WHERE hour < NOW() - INTERVAL ? DAY", [$days])->rowCount();
+}
+
 function record_price_history(array $itemIds): int
 {
     if (!$itemIds) {

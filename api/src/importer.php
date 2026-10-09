@@ -185,6 +185,52 @@ function fold_variant(array $main, array $variant): ?array
     return $main;
 }
 
+// The game's item description lists some recipes with their substitutes'
+// exact amounts, one slot per line:
+//   "- Ingredients:\nWheat x5\nMineral Water x6 OR Purified Water x3\n..."
+// Returns the OR lines as [lowercase item name => amount] groups.
+function description_amount_groups(?string $description): array
+{
+    $groups = [];
+    foreach (preg_split('/\R/', $description ?? "") as $line) {
+        if (!preg_match('/ x\d+\s+or\s+/i', $line)) {
+            continue;
+        }
+        $group = [];
+        foreach (preg_split('/\s+or\s+/i', $line) as $part) {
+            if (preg_match('/^(.+?)\s*x(\d+)$/i', trim($part, " -,.\t"), $m)) {
+                $group[mb_strtolower(trim($m[1]))] = (int)$m[2];
+            }
+        }
+        if (count($group) >= 2) {
+            $groups[] = $group;
+        }
+    }
+    return $groups;
+}
+
+// Sets the exact substitute amounts an OR line gives. A line belongs to the
+// slot whose default item it names with the slot's amount (the description
+// may describe another recipe of the product).
+function apply_description_amounts(array $slots, array $groups, array $itemNames): array
+{
+    $name = fn(int $id) => mb_strtolower($itemNames[$id] ?? "");
+    foreach ($slots as &$slot) {
+        foreach ($groups as $group) {
+            if (($group[$name($slot["item_id"])] ?? null) !== $slot["qty"]) {
+                continue;
+            }
+            foreach (array_keys($slot["alternatives"]) as $id) {
+                if (isset($group[$name($id)])) {
+                    $slot["alternatives"][$id] = $group[$name($id)];
+                }
+            }
+        }
+    }
+    unset($slot);
+    return $slots;
+}
+
 // A substitute of another grade needs another amount: every grade step up
 // halves it (white 4 → green 2 → blue 1, rounded down, at least 1), every step
 // down doubles it. Used when the source gives no exact amount; bdocodex's own

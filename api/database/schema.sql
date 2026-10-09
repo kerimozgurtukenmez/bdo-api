@@ -142,6 +142,19 @@ CREATE TABLE IF NOT EXISTS worker_runs (
     PRIMARY KEY (task)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
+-- Market state once an hour, kept for two weeks: how fast items sell (the
+-- change of total_trades) and how much is on offer (bin/update_prices.php)
+CREATE TABLE IF NOT EXISTS item_market_snapshots (
+    item_id      INT UNSIGNED NOT NULL,
+    hour         DATETIME     NOT NULL,  -- the hour, minutes and seconds zero
+    price        BIGINT       NOT NULL,
+    stock        BIGINT       NOT NULL DEFAULT 0,
+    total_trades BIGINT       NOT NULL DEFAULT 0,
+    PRIMARY KEY (item_id, hour),
+    KEY idx_snapshots_hour (hour),
+    CONSTRAINT fk_snapshots_item FOREIGN KEY (item_id) REFERENCES items (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 -- Life skill mastery bonuses (bdocodex mastery tables), as fractions
 CREATE TABLE IF NOT EXISTS mastery_bonuses (
     skill    VARCHAR(20)       NOT NULL,  -- cooking | alchemy

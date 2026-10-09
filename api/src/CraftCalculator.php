@@ -4,9 +4,14 @@
 //
 // Each item uses one recipe everywhere in the calculation (the default, or the
 // one chosen with $recipeOverrides). Bought instead of crafted: items without a
-// recipe, items sold by NPC vendors, items in $forceBuy, ingredients that would
-// loop back into themselves and, in "cheapest" mode, items whose price is
-// lower than (or known when) the cost of crafting them is not.
+// recipe, items sold by NPC vendors, items in $forceBuy, items that are usually
+// bought (config/recipe_defaults.php), ingredients that would loop back into
+// themselves and, in "cheapest" mode, items whose price is lower than (or known
+// when) the cost of crafting them is not.
+//
+// A slot with substitutes uses the one chosen with $substitutes; otherwise the
+// cheapest to buy for one craft (amount × price), when it costs less than the
+// default and the default's price is known.
 //
 // Items the player already has ($stock) are used first, before anything is
 // crafted or bought; an intermediate taken from stock needs no ingredients.
@@ -45,6 +50,7 @@ final class CraftCalculator
     private ?int  $massSize   = null; // processings per Mass Process at the player's mastery (0: none)
     private array $rare       = [];  // "source:id" => rare products of a chosen recipe
     private array $treeStock  = [];  // item id => units of stock the tree has not used yet
+    private array $defaults;         // config/recipe_defaults.php
     private array $warnings   = [];
     private int   $treeNodes  = 0;
 
@@ -57,7 +63,10 @@ final class CraftCalculator
         private readonly string $mode = "craft",       // craft | cheapest
         private readonly array $mastery = [],          // life skill => mastery (cooking, alchemy)
         private readonly array $stock = [],            // item id => units the player has
-    ) {}
+        ?array $recipeDefaults = null,                 // ["buy" => ids, "recipe" => [id => key]]; null: config file
+    ) {
+        $this->defaults = $recipeDefaults ?? require __DIR__ . "/../config/recipe_defaults.php";
+    }
 
     public function calculate(int $itemId, int $qty): array
     {
@@ -211,6 +220,12 @@ final class CraftCalculator
             $this->buyReason[$itemId] = "vendor";
             return null;
         }
+        // The same for items players usually buy (hand-made list)
+        if ($depth > 0 && $override === null && in_array($itemId, $this->defaults["buy"], true)) {
+            $this->buyReason[$itemId] = "usually_bought";
+            return null;
+        }
+        $override ??= $this->defaults["recipe"][$itemId] ?? null;
 
         foreach ($candidates as $recipe) {
             if ($override === null || $override === "{$recipe['source']}:{$recipe['id']}") {
@@ -300,12 +315,20 @@ final class CraftCalculator
             }
         }
 
+        if ($slots) {
+            $this->loadItems(array_merge(...array_map(fn($s) => [$s["item_id"], ...array_keys($s["alternatives"])], $slots)));
+        }
         foreach ($slots as &$slot) {
-            $wanted = $this->substitutes[$slot["default_item_id"]] ?? null;
-            if ($wanted !== null && isset($slot["alternatives"][$wanted])) {
+            $default = $slot["default_item_id"];
+            $wanted  = $this->substitutes[$default] ?? null;
+            if ($wanted !== null && ($wanted === $default || isset($slot["alternatives"][$wanted]))) {
+                $this->substituted[$default] = true;  // the player's choice (the default too)
+            } else {
+                $wanted = $this->cheapestSubstitute($slot);
+            }
+            if ($wanted !== $default && isset($slot["alternatives"][$wanted])) {
                 $slot["item_id"]   = $wanted;
                 $slot["per_craft"] = $slot["alternatives"][$wanted];  // a substitute may take another amount
-                $this->substituted[$slot["default_item_id"]] = true;
             }
         }
 
@@ -378,6 +401,24 @@ final class CraftCalculator
             "mass_processes" => $full + ($rest > 0 && $restSeconds === self::MASS_PROCESS_SECONDS ? 1 : 0),
             "seconds"        => $full * self::MASS_PROCESS_SECONDS + $restSeconds,
         ];
+    }
+
+    // The slot's item that costs least to buy for one craft; the default unless
+    // its price is known and a substitute is strictly cheaper
+    private function cheapestSubstitute(array $slot): int
+    {
+        $best = $slot["default_item_id"];
+        $bestCost = ($unit = $this->unitPrice($best)) !== null ? $unit * $slot["default_qty"] : null;
+        if ($bestCost === null) {
+            return $best;
+        }
+        foreach ($slot["alternatives"] as $id => $qty) {
+            $unit = $this->unitPrice($id);
+            if ($unit !== null && $unit * $qty < $bestCost) {
+                [$best, $bestCost] = [$id, $unit * $qty];
+            }
+        }
+        return $best;
     }
 
     // Extra products per craft at the player's mastery (bdocodex mastery table)
@@ -565,6 +606,10 @@ final class CraftCalculator
         if ($recipe === null || !empty($slot["cut"])) {
             $node["action"] = "buy";
             $node["reason"] = !empty($slot["cut"]) ? "loop" : $this->buyReason[$itemId];
+            // The recipe "Craft instead" would use, for items bought by default
+            if ($node["reason"] === "usually_bought") {
+                $node["craft_recipe"] = ($c = $this->recipesFor($itemId)[0] ?? null) ? "{$c['source']}:{$c['id']}" : null;
+            }
             $node["cost"]   = $price ? $price["unit"] * $rest : null;
             $node["cost_complete"] = $price !== null;
             return $node;

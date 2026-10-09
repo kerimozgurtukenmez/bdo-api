@@ -179,11 +179,15 @@ foreach ($batches as $n => $batch) {
     }
     $pdo->commit();
 
-    // One price per item and day builds the price history
+    // One price per item and day builds the price history; the hourly
+    // snapshot shows how fast items sell
     record_price_history($batch);
+    record_market_snapshot($batch);
 
     printf("  batch %d/%d done\n", $n + 1, count($batches));
 }
+
+prune_market_snapshots();
 
 printf(
     "\n=== Done in %.1fs: %d on the market, %d not tradeable, %d kept old price, %d not on the market, %d failed ===\n",

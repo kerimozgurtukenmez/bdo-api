@@ -177,6 +177,12 @@ $outputStmt = $pdo->prepare("
     VALUES (?, ?, ?, ?, ?, ?)
 ");
 
+// Exact substitute amounts from the game's descriptions of the products
+$amountGroups = [];
+foreach ($pdo->query("SELECT item_id, description FROM item_details WHERE description REGEXP ' x[0-9]+ (OR|or) '") as $row) {
+    $amountGroups[$row["item_id"]] = description_amount_groups($row["description"]);
+}
+
 foreach (RECIPE_SOURCES as $source) {
     step("Importing $source recipes...");
 
@@ -236,6 +242,9 @@ foreach (RECIPE_SOURCES as $source) {
     ksort($recipes);
 
     foreach ($recipes as $recipe) {
+        if (isset($amountGroups[$recipe["main"]])) {
+            $recipe["slots"] = apply_description_amounts($recipe["slots"], $amountGroups[$recipe["main"]], $itemNames);
+        }
         $recipe["slots"] = fill_substitute_amounts($recipe["slots"], $itemGrades);
         $recipeStmt->execute([
             $source,
@@ -261,9 +270,10 @@ foreach (RECIPE_SOURCES as $source) {
         }
 
         foreach ($recipe["output"] as $i => $out) {
+            // bdocodex sometimes gives a fixed amount as "20–1": the range never goes down
             $outputStmt->execute([
                 $source, $recipe["id"], $out["item_id"],
-                $out["qty_min"] ?? 1, $out["qty_max"] ?? 1,
+                $out["qty_min"] ?? 1, max($out["qty_min"] ?? 1, $out["qty_max"] ?? 1),
                 $i === $recipe["main_index"] ? 1 : 0,
             ]);
         }
@@ -310,6 +320,9 @@ foreach (array_chunk($stale, 1000) as $chunk) {
 step("Removed " . count($stale) . " items that bdocodex no longer lists");
 
 $pdo->commit();
+
+require __DIR__ . "/../src/checks.php";
+echo "\nData checks\n" . data_check_report(data_checks($pdo));
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Report

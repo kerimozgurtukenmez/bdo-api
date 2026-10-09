@@ -83,6 +83,18 @@ final class ApiDataTest extends TestCase
         $this->assertSame([], price_history(self::STEW, 30));
     }
 
+    public function testMarketSnapshotKeepsOneRowPerItemAndHour(): void
+    {
+        self::$pdo->exec("UPDATE item_prices SET total_trades = 100 WHERE item_id = " . self::BEER);
+        record_market_snapshot([self::BEER, self::STEW]);
+        self::$pdo->exec("UPDATE item_prices SET total_trades = 130 WHERE item_id = " . self::BEER);
+        record_market_snapshot([self::BEER]);
+
+        $rows = self::$pdo->query("SELECT item_id, total_trades FROM item_market_snapshots")->fetchAll();
+        $this->assertSame([["item_id" => self::BEER, "total_trades" => 130]], $rows);  // no price: no snapshot
+        $this->assertSame(0, prune_market_snapshots());
+    }
+
     public function testMasteryTables(): void
     {
         $tables = mastery_tables();

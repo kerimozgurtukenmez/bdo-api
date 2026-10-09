@@ -40,7 +40,13 @@ function useSubstitute(id) {
   if (id !== props.node.item.id) actions.substitute(props.node.slot.default_item_id, id)
 }
 const canBuyInstead = computed(() => props.depth > 0 && isCraft.value)
-const canCraftInstead = computed(() => !isCraft.value && boughtByChoice.value.has(props.node.item.id))
+// Bought by the player's choice, or by default (vendor goods, usually bought items)
+const canCraftInstead = computed(() => !isCraft.value && (boughtByChoice.value.has(props.node.item.id) || Boolean(props.node.craft_recipe)))
+
+function craftInstead() {
+  if (boughtByChoice.value.has(props.node.item.id)) actions.craft(props.node.item.id)
+  else actions.recipe(props.node.item.id, props.node.craft_recipe)
+}
 const canPickRecipe = computed(() => isCraft.value && props.node.recipe.other_recipes > 0)
 const hasActions = computed(() => canBuyInstead.value || canCraftInstead.value || canPickRecipe.value)
 
@@ -161,7 +167,7 @@ function pick(key) {
 
     <div v-if="hasActions" class="actions">
       <button v-if="canBuyInstead" class="btn btn-ghost btn-sm" type="button" @click="actions.buy(node.item.id)">Buy instead</button>
-      <button v-if="canCraftInstead" class="btn btn-ghost btn-sm" type="button" @click="actions.craft(node.item.id)">Craft instead</button>
+      <button v-if="canCraftInstead" class="btn btn-ghost btn-sm" type="button" @click="craftInstead">Craft instead</button>
       <button v-if="canPickRecipe" class="btn btn-ghost btn-sm" type="button" :aria-expanded="picking" @click="togglePicker">
         {{ picking ? 'Close' : `Other recipes (${node.recipe.other_recipes})` }}
       </button>

@@ -194,7 +194,7 @@ final class CraftCalculatorTest extends TestCase
         // Pie needs Dough 3 directly and Dough 3 through Bread: 6 in total → 3 crafts.
         // Each branch on its own needs ceil(3 / 2) = 2 crafts.
         $this->assertSame(["Flour" => 2, "Dough" => 3, "Bread" => 1, "Pie" => 1], $this->steps($plan));
-        $this->assertSame(1810, $plan["cost"]["total"]);
+        $this->assertSame(1610, $plan["cost"]["total"]);  // with Strawberry, cheaper than Apple
 
         $tree = $plan["tree"];
         $this->assertSame("Dough", $tree["children"][0]["item"]["name"]);
@@ -230,6 +230,32 @@ final class CraftCalculatorTest extends TestCase
         $this->assertSame([], $steps["Dough"]["rare"]);  // processing: no rare products
         $this->assertSame($rare, $plan["tree"]["recipe"]["rare"]);
         $this->assertArrayNotHasKey("Crumb", $this->materials($plan));
+    }
+
+    public function testTheCheapestSubstituteIsUsedUnlessThePlayerChoseOne(): void
+    {
+        // Pie takes Apple (300) or Strawberry (100), 1 each
+        $auto = $this->plan(self::PIE, 2);
+        $this->assertSame("Strawberry", $auto["tree"]["children"][1]["item"]["name"]);
+        $this->assertArrayHasKey("Strawberry", $this->materials($auto));
+        $this->assertArrayNotHasKey("Apple", $this->materials($auto));
+
+        // Choosing the default itself keeps it, without a warning
+        $chosen = $this->plan(self::PIE, 2, ["substitutes" => [self::APPLE => self::APPLE]]);
+        $this->assertSame("Apple", $chosen["tree"]["children"][1]["item"]["name"]);
+        $this->assertSame([], $chosen["warnings"]);
+    }
+
+    public function testUsuallyBoughtItemsAreBoughtUnlessARecipeIsPicked(): void
+    {
+        $defaults = ["buy" => [self::DOUGH], "recipe" => []];
+
+        $plan = $this->plan(self::BREAD, 10, ["recipeDefaults" => $defaults]);
+        $this->assertSame("usually_bought", $this->materials($plan)["Dough"]["reason"]);
+        $this->assertSame("processing:11", $plan["tree"]["children"][0]["craft_recipe"]);
+
+        $crafted = $this->plan(self::BREAD, 10, ["recipeDefaults" => $defaults, "recipeOverrides" => [self::DOUGH => "processing:11"]]);
+        $this->assertArrayHasKey("Dough", $this->steps($crafted));
     }
 
     public function testSubstituteUsesItsOwnAmount(): void

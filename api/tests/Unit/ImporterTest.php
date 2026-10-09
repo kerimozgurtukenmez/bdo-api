@@ -165,6 +165,24 @@ final class ImporterTest extends TestCase
         $this->assertSame([7342 => 1], $kept[3233]["slots"][1]["alternatives"]);
     }
 
+    public function testExactAmountsFromTheGameDescription(): void
+    {
+        $groups = description_amount_groups("- Ingredients:\nWheat x5\nMineral Water x6 OR Purified Water x3\nCitron x5 or High-quality Citron x2 or Special Citron x1");
+        $this->assertSame([
+            ["mineral water" => 6, "purified water" => 3],
+            ["citron" => 5, "high-quality citron" => 2, "special citron" => 1],
+        ], $groups);
+
+        $names = [1 => "Citron", 2 => "High-quality Citron", 3 => "Special Citron", 4 => "Mineral Water", 5 => "Purified Water"];
+        $slots = apply_description_amounts([
+            ["item_id" => 1, "qty" => 5, "alternatives" => [2 => null, 3 => null]],
+            ["item_id" => 4, "qty" => 2, "alternatives" => [5 => null]],  // another recipe's amount: not this line
+        ], $groups, $names);
+
+        $this->assertSame([2 => 2, 3 => 1], $slots[0]["alternatives"]);
+        $this->assertSame([5 => null], $slots[1]["alternatives"]);
+    }
+
     public function testSubstituteAmountByGrade(): void
     {
         // Every grade step up halves the amount (rounded down, at least 1), every step down doubles it

@@ -62,6 +62,7 @@ export const BUY_REASONS = {
   cheaper: 'Cheaper to buy',
   loop: 'Recipe loop',
   max_depth: 'Chain too deep',
+  usually_bought: 'Usually bought',
 }
 
 export const PRICE_SOURCES = {

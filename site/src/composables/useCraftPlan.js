@@ -88,12 +88,8 @@ export function useCraftPlan() {
     buy: (itemId) => update({ buy: [...new Set([...settings.value.buy, itemId])] }),
     craft: (itemId) => update({ buy: settings.value.buy.filter((id) => id !== itemId) }),
     recipe: (itemId, key) => update({ recipe: { ...settings.value.recipe, [itemId]: key } }),
-    substitute: (defaultId, itemId) => {
-      const sub = { ...settings.value.sub }
-      if (defaultId === itemId) delete sub[defaultId]
-      else sub[defaultId] = String(itemId)
-      update({ sub })
-    },
+    // Kept even when it is the default: without a choice the cheapest is used
+    substitute: (defaultId, itemId) => update({ sub: { ...settings.value.sub, [defaultId]: String(itemId) } }),
     resetChoices: () => update({ buy: [], recipe: {}, sub: {} }),
     /** Units of an item the player has; 0 removes it */
     have: (itemId, units) => {
