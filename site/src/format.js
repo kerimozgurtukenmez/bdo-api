@@ -24,6 +24,18 @@ export function plural(count, word) {
   return `${number(count)} ${count === 1 ? word : `${word}s`}`
 }
 
+const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" })
+
+/** "5 minutes ago", "yesterday" — from a Unix time in seconds */
+export function ago(unixSeconds) {
+  if (unixSeconds == null) return null
+  const seconds = unixSeconds - Date.now() / 1000
+  for (const [unit, size] of [["day", 86400], ["hour", 3600], ["minute", 60]]) {
+    if (Math.abs(seconds) >= size) return relative.format(Math.round(seconds / size), unit)
+  }
+  return "just now"
+}
+
 export const SKILLS = {
   cooking: 'Cooking',
   alchemy: 'Alchemy',

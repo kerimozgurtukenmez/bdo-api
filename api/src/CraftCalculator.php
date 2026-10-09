@@ -96,6 +96,8 @@ final class CraftCalculator
                 "per_unit"       => round($cost / $qty, 2),
                 "complete"       => !$missing,
                 "missing_prices" => array_map(fn($m) => $m["item"], $missing),
+                // Unix time of the oldest market price used, null when none is
+                "prices_updated_at" => $this->oldestMarketPrice($materials),
             ],
             "market_value" => [
                 "unit"   => $rootPrice["unit"] ?? null,
@@ -372,6 +374,17 @@ final class CraftCalculator
                                     <=> [$b["total_price"] === null, -($b["total_price"] ?? 0)]);
 
         return [$materials, array_reverse($steps)];
+    }
+
+    private function oldestMarketPrice(array $materials): ?int
+    {
+        $times = [];
+        foreach ($materials as $m) {
+            if (($m["price"]["source"] ?? null) === "market") {
+                $times[] = (int)$this->items[$m["item"]["id"]]["price_updated_at"];
+            }
+        }
+        return $times ? min($times) : null;
     }
 
     private function bySource(array $steps): array

@@ -103,6 +103,7 @@ final class CraftCalculatorTest extends TestCase
         $this->assertSame(["steps" => 2, "crafts" => 23, "exp" => 0], $plan["by_source"]["processing"]);
         $this->assertSame(["steps" => 1, "crafts" => 10, "exp" => 4000], $plan["by_source"]["cooking"]);
         $this->assertSame([], $plan["warnings"]);
+        $this->assertEqualsWithDelta(time(), $plan["cost"]["prices_updated_at"], 600);  // prices were just inserted
     }
 
     public function testTotalsRoundCraftsOncePerItemButTheTreeRoundsPerBranch(): void
@@ -162,6 +163,7 @@ final class CraftCalculatorTest extends TestCase
         $this->assertSame(4200, $plan["cost"]["total"]);
         $this->assertFalse($plan["cost"]["complete"]);
         $this->assertSame(["Dough"], array_column($plan["cost"]["missing_prices"], "name"));
+        $this->assertIsInt($plan["cost"]["prices_updated_at"]);  // Egg comes from the market
         $this->assertNull($plan["market_value"]["profit"]);
     }
 

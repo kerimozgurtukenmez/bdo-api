@@ -2,7 +2,7 @@
 import { computed, provide, ref, watch } from 'vue'
 import { useCraftPlan } from '../composables/useCraftPlan.js'
 import { FAME_TIERS, useSellerSettings } from '../composables/useSellerSettings.js'
-import { BUY_REASONS, PRICE_SOURCES, SKILLS, number, plural, silver } from '../format.js'
+import { BUY_REASONS, PRICE_SOURCES, SKILLS, ago, number, plural, silver } from '../format.js'
 import ItemIcon from '../components/ItemIcon.vue'
 import SearchBox from '../components/SearchBox.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
@@ -66,6 +66,10 @@ const profit = computed(() => {
 })
 const profitTone = computed(() => (profit.value == null ? null : profit.value >= 0 ? 'positive' : 'negative'))
 const taxRate = computed(() => `${number(rate.value * 100)}%`)
+
+// Market prices older than a day may be out of date
+const pricesAge = computed(() => plan.value?.cost.prices_updated_at ?? null)
+const pricesStale = computed(() => pricesAge.value != null && Date.now() / 1000 - pricesAge.value > 86400)
 
 // Crafting steps grouped by life skill, in crafting order within each group
 const stepGroups = computed(() => {
@@ -293,6 +297,9 @@ async function copyMaterials() {
                 </tr>
               </tfoot>
             </table>
+            <p v-if="pricesAge" class="prices-note" :class="{ outdated: pricesStale }" :title="new Date(pricesAge * 1000).toLocaleString()">
+              Market prices (EU) from {{ ago(pricesAge) }}<template v-if="pricesStale"> — may be out of date</template>
+            </p>
           </section>
         </aside>
       </div>
@@ -592,6 +599,17 @@ async function copyMaterials() {
 
 .material-name {
   font-weight: 500;
+}
+
+.prices-note {
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text-faint);
+  font-size: var(--text-xs);
+}
+
+.prices-note.outdated {
+  color: var(--warning);
 }
 
 @media (max-width: 960px) {

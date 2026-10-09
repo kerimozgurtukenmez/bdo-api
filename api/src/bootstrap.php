@@ -223,7 +223,7 @@ function icon_url(?string $path): ?string
 
 // Columns needed by item_price(). Expects aliases d = item_details, p = item_prices.
 const PRICE_COLUMNS = "
-    p.base_price, p.last_sold_price, p.updated_at AS price_updated_at,
+    p.base_price, p.last_sold_price, UNIX_TIMESTAMP(p.updated_at) AS price_updated_at,
     d.buy_price, d.sell_price, d.vendor_sold
 ";
 
