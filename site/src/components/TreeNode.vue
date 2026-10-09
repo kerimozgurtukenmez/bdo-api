@@ -32,6 +32,10 @@ const cheapestSubstitute = computed(() => {
   return priced.reduce((best, alt) => (alt.qty * alt.price.unit < best.qty * best.price.unit ? alt : best)).id
 })
 
+// The substitute in use takes an amount estimated from its grade
+const estimatedAmount = computed(() => substitutes.value.find((alt) => alt.id === props.node.item.id)?.estimated ?? false)
+const amount = (alt) => (alt.estimated ? `≈${alt.qty}` : alt.qty)
+
 function useSubstitute(id) {
   if (id !== props.node.item.id) actions.substitute(props.node.slot.default_item_id, id)
 }
@@ -113,6 +117,7 @@ function pick(key) {
             <span v-else class="warning-text">No price known</span>
           </template>
           <span v-if="node.from_stock && node.action !== 'stock'" class="stock-text">{{ number(node.from_stock) }} from your stock</span>
+          <span v-if="estimatedAmount" class="warning-text" title="The source gives no amount for this substitute; it is estimated from its grade">Amount estimated</span>
         </div>
       </div>
 
@@ -135,7 +140,7 @@ function pick(key) {
           @click="useSubstitute(alt.id)"
         >
           <ItemIcon :item="alt" :size="20" />
-          <span>{{ alt.name }} <span class="num">× {{ alt.qty }}</span></span>
+          <span>{{ alt.name }} <span class="num" :title="alt.estimated ? 'Estimated from its grade' : null">× {{ amount(alt) }}</span></span>
           <span v-if="alt.price" class="faint num">{{ silver(alt.price.unit) }} each</span>
           <span v-if="alt.id === cheapestSubstitute" class="cheapest">Cheapest</span>
         </button>
@@ -148,7 +153,7 @@ function pick(key) {
         @change="useSubstitute(Number($event.target.value))"
       >
         <option v-for="alt in substitutes" :key="alt.id" :value="alt.id">
-          {{ alt.name }} × {{ alt.qty }}{{ alt.price ? ` — ${silver(alt.price.unit)} each` : '' }}{{ alt.id === cheapestSubstitute ? ' (cheapest)' : '' }}
+          {{ alt.name }} × {{ amount(alt) }}{{ alt.price ? ` — ${silver(alt.price.unit)} each` : '' }}{{ alt.id === cheapestSubstitute ? ' (cheapest)' : '' }}
         </option>
       </select>
       <span v-if="substitutes.length > MAX_BUTTONS" class="faint small">{{ substitutes.length }} options</span>

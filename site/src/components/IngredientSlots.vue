@@ -27,8 +27,13 @@ function expand(slot) {
   expanded.value = new Set(expanded.value).add(slot.slot)
 }
 
+// A substitute's amount may be estimated from its grade (the source gives none)
+function amount(ing) {
+  return ing.estimated ? `≈${ing.qty_min}` : ing.qty_min
+}
+
 function title(ing) {
-  return `${ing.name} × ${ing.qty_min}${ing.price ? ` — ${silver(ing.price.unit)} each` : ''}`
+  return `${ing.name} × ${amount(ing)}${ing.estimated ? ' (estimated from its grade)' : ''}${ing.price ? ` — ${silver(ing.price.unit)} each` : ''}`
 }
 </script>
 
@@ -45,7 +50,7 @@ function title(ing) {
       <template v-for="(ing, i) in choices(slot)" :key="i">
         <span v-if="i" class="or" aria-hidden="true">or</span>
         <RouterLink :to="itemRoute(ing)" :title="title(ing)" class="ing">
-          <ItemIcon :item="ing" :size="size" :qty="ing.qty_min" />
+          <ItemIcon :item="ing" :size="size" :qty="amount(ing)" />
         </RouterLink>
       </template>
       <button v-if="hidden(slot)" class="more" type="button" :aria-label="`Show ${hidden(slot)} more substitutes`" @click="expand(slot)">

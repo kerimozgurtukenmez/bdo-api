@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { api } from '../api.js'
 import { usePageMeta } from '../composables/usePageMeta.js'
@@ -37,8 +37,8 @@ async function loadItem() {
   error.value = null
   try {
     item.value = await api.item(itemId.value, controller.signal)
-    // Keep one URL per item: /item/9213/beer
-    if (route.params.slug !== slugify(item.value.name)) router.replace(itemRoute(item.value))
+    // Keep one URL per item: /item/9213/beer (and the #how-to-make a list links to)
+    if (route.params.slug !== slugify(item.value.name)) router.replace({ ...itemRoute(item.value), hash: route.hash })
   } catch (e) {
     if (e.name !== 'AbortError') error.value = e
   }
@@ -92,22 +92,39 @@ async function loadHistory() {
 const SHOWN_RECIPES = 5
 const makeGroups = ref(null)
 const showAllRecipes = ref(false)
+const recipeFilter = ref('')
 
 async function loadRecipes() {
   makeGroups.value = null
   showAllRecipes.value = false
+  recipeFilter.value = ''
   if (!craftable.value) return
   try {
     makeGroups.value = (await api.recipesFor(itemId.value, controller.signal)).groups
   } catch {
     makeGroups.value = []
   }
+  // Lists link here to pick one of several recipes; the section exists only now
+  if (route.hash === '#how-to-make') {
+    await nextTick()
+    document.getElementById('how-to-make')?.scrollIntoView({ block: 'start' })
+  }
 }
 
 const makeRecipes = computed(() =>
   (makeGroups.value ?? []).flatMap((group) => group.recipes.map((recipe) => ({ ...recipe, source: group.source, category: group.category }))),
 )
-const shownRecipes = computed(() => (showAllRecipes.value ? makeRecipes.value : makeRecipes.value.slice(0, SHOWN_RECIPES)))
+// Many recipes (melting any of 38 kinds of equipment): filter by an ingredient
+const filteredRecipes = computed(() => {
+  const term = recipeFilter.value.trim().toLowerCase()
+  if (!term) return makeRecipes.value
+  return makeRecipes.value.filter((recipe) =>
+    recipe.ingredients.some((slot) => [slot, ...slot.alternatives].some((ing) => ing.name.toLowerCase().includes(term))),
+  )
+})
+const shownRecipes = computed(() =>
+  showAllRecipes.value || recipeFilter.value.trim() ? filteredRecipes.value : filteredRecipes.value.slice(0, SHOWN_RECIPES),
+)
 
 // ── Used in ────────────────────────────────────────────────────────────
 const usedPage = ref(1)
@@ -119,7 +136,7 @@ async function loadUsedIn() {
     return
   }
   try {
-    usedIn.value = await api.recipes({ ingredient_id: itemId.value, with_ingredients: 1, limit: 10, page: usedPage.value }, controller.signal)
+    usedIn.value = await api.recipes({ ingredient_id: itemId.value, with_ingredients: 1, per_product: 1, limit: 10, page: usedPage.value }, controller.signal)
   } catch {
     usedIn.value = { data: [], total: 0, total_pages: 0 }
   }
@@ -234,7 +251,16 @@ watch(usedPage, () => item.value && loadUsedIn())
       </div>
       <div class="card-body">
         <div v-if="!makeGroups" class="skeleton" style="height: 120px"></div>
-        <ul v-else class="make-list">
+        <input
+          v-if="makeRecipes.length > SHOWN_RECIPES"
+          v-model="recipeFilter"
+          class="input recipe-filter"
+          type="search"
+          placeholder="Filter by ingredient…"
+          aria-label="Filter recipes by ingredient"
+        />
+        <p v-if="makeGroups && recipeFilter.trim() && !filteredRecipes.length" class="muted small">No recipe uses “{{ recipeFilter.trim() }}”.</p>
+        <ul v-if="makeGroups" class="make-list">
           <li v-for="recipe in shownRecipes" :key="recipe.key" class="make-recipe">
             <div class="make-info">
               <div class="make-head">
@@ -250,7 +276,7 @@ watch(usedPage, () => item.value && loadUsedIn())
           </li>
         </ul>
         <p v-if="makeGroups && hasSubstitutes" class="faint small">Ingredients in a dashed box can replace each other: use any one of them.</p>
-        <button v-if="makeRecipes.length > SHOWN_RECIPES" class="btn btn-ghost btn-sm show-all" type="button" @click="showAllRecipes = !showAllRecipes">
+        <button v-if="!recipeFilter.trim() && makeRecipes.length > SHOWN_RECIPES" class="btn btn-ghost btn-sm show-all" type="button" @click="showAllRecipes = !showAllRecipes">
           {{ showAllRecipes ? 'Show fewer' : `Show all ${number(makeRecipes.length)} recipes` }}
         </button>
       </div>
@@ -417,6 +443,16 @@ dd {
 .facts dd {
   margin: 0;
   text-align: right;
+}
+
+#how-to-make {
+  scroll-margin-top: calc(var(--header-height) + var(--space-4));
+}
+
+.recipe-filter {
+  width: 100%;
+  max-width: 320px;
+  margin-bottom: var(--space-2);
 }
 
 .make-list {

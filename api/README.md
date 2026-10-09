@@ -66,7 +66,7 @@ the tests are worked out by hand from it.
 `public/index.php` lists them with examples.
 
 - `items.php` — `?id=` one item (details, price, recipes that make it, recipes it is a rare product of) or `?search=` (`craftable=1`, `source=`)
-- `recipes.php` — `?source=&id=` one recipe, `?item_id=&grouped=1` recipes for an item, `?categories=1`, or a filtered list (`with_ingredients=1`: ingredient slots with substitutes, and rare products)
+- `recipes.php` — `?source=&id=` one recipe, `?item_id=&grouped=1` recipes for an item, `?categories=1`, or a filtered list (`with_ingredients=1`: ingredient slots with substitutes, and rare products; `per_product=1`: one row per product and category, the default recipe with `product_recipes`)
 - `craft.php?item_id=&qty=` — crafting plan: materials to buy, steps in crafting order, cost and the recipe tree
   - `mode=cheapest` buys intermediates when the market price is lower than crafting them
   - `recipe[item]=source:id`, `buy=id,id`, `substitute[item]=item`, `yield=min|avg|max`
@@ -82,7 +82,8 @@ Every response is JSON; errors are `{"error": "..."}` with a 4xx/5xx status.
 
 - Source data is scraped from bdocodex (`data/*.json`).
 - Each recipe slot has a default ingredient and optional substitutes (`recipe_inputs.slot`); a substitute can need a different amount (Purified Water ×3 for Mineral Water ×6).
-- bdocodex lists some cooking and alchemy recipes again for fixed ingredient combinations. The importer folds these variants into the main recipe (named after the product); a variant that differs in more than one ingredient stays a recipe of its own. Processing recipes are not folded.
+- bdocodex lists recipes again for fixed ingredient combinations (Citron Tea: 6 times). The importer folds these variants into the main recipe of the product and category (named after the product); a variant that differs in more than one ingredient stays a recipe of its own. Processing variants fold only when they give the same products; Imperial delivery recipes never fold.
+- Substitute amounts come from the variants when they show them. Otherwise they are estimated from the grade: every grade step up halves the amount (rounded down, at least 1), a step down doubles it (`estimate_substitute_qty()`). Estimates that change the amount are flagged in `recipe_inputs.qty_estimated` and in the API (`estimated`).
 - `recipe_outputs.is_main` marks the product a recipe is for. The other outputs of cooking and alchemy recipes are rare products (Cold Draft Beer when making Beer); in processing they are byproducts. The game does not publish the rare chance; the API gives the life skill level it needs, read from the item description (`rare_requirement()`). Rare products are listed in the calculator but not counted in its totals.
 - Recipes without ingredients or products in the scrape (about 230 processing recipes) are skipped.
 - Prices: `item_price()` uses the market base price, or the NPC price for items whose description says a vendor sells them. `item_details.buy_price` alone is not a real price.
