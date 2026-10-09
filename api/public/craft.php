@@ -8,6 +8,7 @@
 //     &recipe[9003]=cooking:106      use this recipe for an item (see recipes.php?grouped=1)
 //     &buy=9017,9018  or  buy[]=9017 buy these items instead of crafting them
 //     &substitute[7313]=7304         use a substitute ingredient wherever it is allowed
+//     &mastery[cooking]=1500         mastery adds products to cooking / alchemy crafts (0–3000)
 //
 // Response: materials to buy, crafting steps in order, total cost and the full
 // recipe tree. Totals round crafts up once per item; the tree rounds per branch.
@@ -16,6 +17,7 @@ declare(strict_types=1);
 
 require __DIR__ . "/../src/bootstrap.php";
 require __DIR__ . "/../src/CraftCalculator.php";
+require __DIR__ . "/../src/mastery.php";
 api_init();
 
 // "1,2,3" or ids[]=1&ids[]=2 → [1 => true, 2 => true, ...]
@@ -56,6 +58,26 @@ function param_id_map(string $name, string $pattern, string $hint): array
     return $map;
 }
 
+// mastery[cooking]=1500 → ["cooking" => 1500]
+function param_mastery(): array
+{
+    $raw = $_GET["mastery"] ?? [];
+    $error = "'mastery' must look like mastery[cooking]=1500 (cooking or alchemy, 0–" . MAX_MASTERY . ")";
+    if (!is_array($raw)) {
+        throw new ApiError($error);
+    }
+
+    $mastery = [];
+    foreach ($raw as $skill => $value) {
+        $value = filter_var($value, FILTER_VALIDATE_INT);
+        if (!in_array($skill, MASTERY_SKILLS, true) || $value === false || $value < 0 || $value > MAX_MASTERY) {
+            throw new ApiError($error);
+        }
+        $mastery[$skill] = $value;
+    }
+    return $mastery;
+}
+
 $itemId = param_int("item_id") ?? param_int("id") ?? throw new ApiError("'item_id' is required");
 $qty    = param_int("qty", 1, 1, 1_000_000);
 
@@ -66,6 +88,7 @@ $calculator = new CraftCalculator(
     substitutes:     array_map("intval", param_id_map("substitute", '/^\d+$/', "substitute item id")),
     yieldMode:       param_enum("yield", ["avg", "min", "max"], "avg"),
     mode:            param_enum("mode", ["craft", "cheapest"], "craft"),
+    mastery:         param_mastery(),
 );
 
 json_out($calculator->calculate($itemId, $qty));

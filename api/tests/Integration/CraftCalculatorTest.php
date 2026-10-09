@@ -60,6 +60,9 @@ final class CraftCalculatorTest extends TestCase
         TestDatabase::addRecipe($pdo, "processing", 15, "Sauce", "Simple Cooking", [[self::APPLE, 1]], [[self::SAUCE, 1, 1]]);
         TestDatabase::addRecipe($pdo, "cooking", 25, "Sauce", "Cooking", [[self::APPLE, 2]], [[self::SAUCE, 1, 1]]);
         TestDatabase::addRecipe($pdo, "processing", 32, "Egg", "Simple Cooking", [[self::EGG, 2]], [[self::EGG, 3, 3]]);
+
+        // Cooking mastery: +50% products from 1000
+        $pdo->exec("INSERT INTO mastery_bonuses (skill, mastery, product, rare, imperial) VALUES ('cooking', 0, 0, 0, 0), ('cooking', 1000, 0.5, 0.1, 0.6)");
     }
 
     private function plan(int $itemId, int $qty, array $options = []): array
@@ -212,6 +215,20 @@ final class CraftCalculatorTest extends TestCase
         // min: 1 Dough and 1 Flour per craft; max: 3 of each
         $this->assertSame(150, $this->materials($this->plan(self::BREAD, 10, ["yieldMode" => "min"]))["Wheat"]["qty"]);
         $this->assertSame(20, $this->materials($this->plan(self::BREAD, 10, ["yieldMode" => "max"]))["Wheat"]["qty"]);
+    }
+
+    public function testMasteryAddsProductsToCookingCraftsOnly(): void
+    {
+        // Bread (cooking) makes 1.5 per craft at 1000 mastery: 10 Bread = 7 crafts.
+        // Dough and Flour are processing and keep their yield: 21 Dough = 11 crafts, 11 Flour = 6 crafts.
+        $plan = $this->plan(self::BREAD, 10, ["mastery" => ["cooking" => 1000]]);
+        $this->assertSame(["Flour" => 6, "Dough" => 11, "Bread" => 7], $this->steps($plan));
+        $this->assertSame(1.5, end($plan["steps"])["recipe"]["yield"]);
+        $this->assertSame(30, $this->materials($plan)["Wheat"]["qty"]);
+
+        // Below the next table row the lower row applies: 999 mastery has no bonus
+        $steps = $this->plan(self::BREAD, 10, ["mastery" => ["cooking" => 999]])["steps"];
+        $this->assertSame(10, end($steps)["crafts"]);
     }
 
     public function testDefaultRecipeOrder(): void

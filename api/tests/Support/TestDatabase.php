@@ -26,6 +26,7 @@ final class TestDatabase
         $pdo = new PDO("mysql:host={$c['host']};dbname={$c['name']};charset=utf8mb4", $c["user"], $c["pass"],
             $options + [PDO::ATTR_EMULATE_PREPARES => false]);
         apply_schema($pdo);
+        db($pdo);  // query() and friends use the test database too
 
         return $pdo;
     }

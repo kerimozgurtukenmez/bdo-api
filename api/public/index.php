@@ -37,6 +37,16 @@ json_out([
             "&substitute[7313]=7304"        => "Use a substitute ingredient where the recipe allows it",
             "&mode=cheapest"                => "Buy intermediates from the market when cheaper than crafting them",
             "&yield=min"                    => "Products per craft: min, avg (default) or max",
+            "&mastery[cooking]=1500"        => "Add the extra products of cooking / alchemy mastery",
+        ],
+        "prices.php"   => [
+            "?item_id=9213&days=30"         => "Price history, one point per day",
+        ],
+        "mastery.php"  => [
+            ""                              => "Cooking and alchemy mastery bonus tables",
+        ],
+        "imperial.php" => [
+            "?skill=cooking"                => "Imperial delivery boxes, their base price and recipes",
         ],
     ],
 ]);

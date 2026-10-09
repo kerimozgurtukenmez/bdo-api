@@ -107,3 +107,41 @@ function codex_parse_recipes(array $rows, string $source): array
     usort($recipes, fn($a, $b) => $a["id"] <=> $b["id"]);
     return $recipes;
 }
+
+// "76.45%" → 0.7645
+function codex_percent(mixed $value): float
+{
+    return round((float)str_replace(["%", ","], ["", "."], (string)$value) / 100, 4);
+}
+
+// Rows of query.php?a=cookingmastery / a=alchemymastery, ascending by mastery.
+//   cooking: [mastery, product, byproduct, rare product, mass production, royal trade]
+//   alchemy: [mastery, product, common item, special item, rare item, royal trade]
+function codex_parse_mastery(array $rows, string $skill): array
+{
+    $rareColumn = $skill === "alchemy" ? 4 : 3;
+
+    $table = [];
+    foreach ($rows as $row) {
+        $table[] = [
+            "mastery"  => (int)$row[0],
+            "product"  => codex_percent($row[1]),
+            "rare"     => codex_percent($row[$rareColumn]),
+            "imperial" => codex_percent($row[5]),
+        ];
+    }
+
+    usort($table, fn($a, $b) => $a["mastery"] <=> $b["mastery"]);
+    return $table;
+}
+
+// Buy and sell price from an item page ("Buy price: 220,000<img…>",
+// "Sell price: <span…>-</span>" when it cannot be sold). null = not shown.
+function codex_item_page_prices(string $html): array
+{
+    $price = fn(string $label) => preg_match("#$label:\s*([\d,.']+)#", $html, $m)
+        ? (int)preg_replace('/\D/', "", $m[1])
+        : null;
+
+    return ["buy_price" => $price("Buy price"), "sell_price" => $price("Sell price")];
+}

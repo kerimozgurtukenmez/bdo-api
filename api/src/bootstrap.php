@@ -36,10 +36,14 @@ function config(?string $key = null): mixed
     return $key === null ? $config : ($config[$key] ?? null);
 }
 
-function db(): PDO
+// The shared connection. Tests pass their own connection once to use it everywhere.
+function db(?PDO $use = null): PDO
 {
     static $pdo = null;
 
+    if ($use !== null) {
+        $pdo = $use;
+    }
     if ($pdo === null) {
         $c = config("db");
         $pdo = new PDO(

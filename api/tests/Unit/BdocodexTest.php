@@ -68,6 +68,26 @@ final class BdocodexTest extends TestCase
         ], $shard["output"]);
     }
 
+    public function testMasteryTables(): void
+    {
+        // Rows as query.php?a=cookingmastery / alchemymastery return them, newest first
+        $cooking = codex_parse_mastery([[3000, "76.45%", "76.45%", "24.20%", "100.00%", "181.25%"], [0, "0.00%", "0.00%", "0.00%", "0.00%", "0.00%"]], "cooking");
+        $alchemy = codex_parse_mastery([[3000, "62.50%", "0.00%", "0.00%", "1.25%", "181.25%"]], "alchemy");
+
+        $this->assertSame(0, $cooking[0]["mastery"]);  // sorted ascending
+        $this->assertSame(["mastery" => 3000, "product" => 0.7645, "rare" => 0.242, "imperial" => 1.8125], $cooking[1]);
+        $this->assertSame(0.0125, $alchemy[0]["rare"]);  // rare item chance is the 5th column for alchemy
+    }
+
+    public function testItemPagePrices(): void
+    {
+        $page = '<td>Knowledge: - Master&#39;s Cooking Box Buy price: 220,000<img src="/items/new_icon/00000001_special.webp" alt="coin"><br>'
+              . 'Sell price: <span class="red_text">-</span><br>Repair price: <span class="red_text">-</span><br></td>';
+
+        $this->assertSame(["buy_price" => 220000, "sell_price" => null], codex_item_page_prices($page));
+        $this->assertSame(["buy_price" => null, "sell_price" => null], codex_item_page_prices("<p>No prices here</p>"));
+    }
+
     public function testItems(): void
     {
         $items = codex_parse_items(self::$rows["items"]);

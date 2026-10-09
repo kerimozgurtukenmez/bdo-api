@@ -30,6 +30,7 @@ final class CraftCalculator
     private array $buyReason  = [];  // item id => why it is not crafted
     private array $cycleItems = [];  // items bought because their recipe would loop
     private array $substituted = []; // default item ids a substitute was used for
+    private array $productBonus = []; // life skill => extra products per craft from mastery
     private array $warnings   = [];
     private int   $treeNodes  = 0;
 
@@ -40,6 +41,7 @@ final class CraftCalculator
         private readonly array $substitutes = [],      // default item id => substitute item id
         private readonly string $yieldMode = "avg",    // min | avg | max product per craft
         private readonly string $mode = "craft",       // craft | cheapest
+        private readonly array $mastery = [],          // life skill => mastery (cooking, alchemy)
     ) {}
 
     public function calculate(int $itemId, int $qty): array
@@ -86,6 +88,7 @@ final class CraftCalculator
             "settings" => [
                 "mode"       => $this->mode,
                 "yield"      => $this->yieldMode,
+                "mastery"    => (object)$this->mastery,
                 "region"     => config("market")["region"],
                 "recipe"     => (object)$this->recipeOverrides,
                 "buy"        => array_keys($this->forceBuy),
@@ -219,7 +222,8 @@ final class CraftCalculator
                 "max"   => $recipe["output_max"],
                 default => ($recipe["output_min"] + $recipe["output_max"]) / 2,
             };
-            $recipe["yield"] = max(1, $yield);
+            // Mastery adds products to every cooking / alchemy craft
+            $recipe["yield"] = max(1, $yield) * (1 + $this->productBonus($recipe["source"]));
             unset($recipe["name_match"]);
         }
         unset($recipe);
@@ -303,6 +307,22 @@ final class CraftCalculator
                 $unitCost[$itemId] = $craftCost;
             }
         }
+    }
+
+    // Extra products per craft at the player's mastery (bdocodex mastery table)
+    private function productBonus(string $source): float
+    {
+        if (!isset($this->productBonus[$source])) {
+            $mastery = (int)($this->mastery[$source] ?? 0);
+            $stmt = $this->pdo->prepare("
+                SELECT product FROM mastery_bonuses
+                WHERE skill = ? AND mastery <= ?
+                ORDER BY mastery DESC LIMIT 1
+            ");
+            $stmt->execute([$source, $mastery]);
+            $this->productBonus[$source] = $mastery > 0 ? (float)$stmt->fetchColumn() : 0.0;
+        }
+        return $this->productBonus[$source];
     }
 
     private function unitPrice(int $itemId): ?int

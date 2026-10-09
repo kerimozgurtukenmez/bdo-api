@@ -110,3 +110,23 @@ CREATE TABLE IF NOT EXISTS recipe_outputs (
     CONSTRAINT fk_outputs_recipe FOREIGN KEY (recipe_source, recipe_id) REFERENCES recipes (source, id) ON DELETE CASCADE,
     CONSTRAINT fk_outputs_item   FOREIGN KEY (item_id) REFERENCES items (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- One Central Market price per item and day (written by bin/update_prices.php)
+CREATE TABLE IF NOT EXISTS item_price_history (
+    item_id INT UNSIGNED NOT NULL,
+    day     DATE         NOT NULL,
+    price   BIGINT       NOT NULL,
+    stock   BIGINT       NOT NULL DEFAULT 0,
+    PRIMARY KEY (item_id, day),
+    CONSTRAINT fk_price_history_item FOREIGN KEY (item_id) REFERENCES items (id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- Life skill mastery bonuses (bdocodex mastery tables), as fractions
+CREATE TABLE IF NOT EXISTS mastery_bonuses (
+    skill    VARCHAR(20)       NOT NULL,  -- cooking | alchemy
+    mastery  SMALLINT UNSIGNED NOT NULL,  -- 0–3000, steps of 50
+    product  DECIMAL(6,4)      NOT NULL,  -- extra products per craft (0.7645 = +76.45%)
+    rare     DECIMAL(6,4)      NOT NULL,  -- extra rare products (cooking) / rare item chance (alchemy)
+    imperial DECIMAL(6,4)      NOT NULL,  -- Imperial delivery ("royal trade") silver bonus
+    PRIMARY KEY (skill, mastery)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

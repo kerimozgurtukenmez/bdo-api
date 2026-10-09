@@ -21,6 +21,7 @@ if (PHP_SAPI !== "cli") {
 }
 
 require __DIR__ . "/../src/bootstrap.php";
+require __DIR__ . "/../src/prices.php";
 
 set_time_limit(0);
 
@@ -168,6 +169,9 @@ foreach ($batches as $n => $batch) {
         ($e["basePrice"] ?? 0) > 0 ? $onMarket++ : $notOnMarket++;
     }
     $pdo->commit();
+
+    // One price per item and day builds the price history
+    record_price_history($batch);
 
     printf("  batch %d/%d done\n", $n + 1, count($batches));
 }

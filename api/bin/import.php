@@ -27,7 +27,8 @@ $start = microtime(true);
 $warnings = [];
 
 // The data files are not in git: bin/scrape.php writes items.json and the
-// recipes; item_descriptions.json (item details) is an optional extra.
+// recipes, mastery tables and item page prices; item_descriptions.json (item
+// details) is an optional extra from an older scrape.
 function readJson(string $filename, bool $optional = false): array
 {
     $path = DATA_DIR . "/" . $filename;
@@ -139,6 +140,20 @@ foreach (readJson("item_descriptions.json", optional: true) as $item) {
 }
 step("  $count item details ($vendors sold by NPC vendors)" . ($removed ? ", $removed for removed items skipped" : ""));
 
+// Prices read from single item pages (the Imperial boxes' base prices)
+$stmt = $pdo->prepare("
+    INSERT INTO item_details (item_id, buy_price, sell_price) VALUES (?, ?, ?)
+    ON DUPLICATE KEY UPDATE buy_price = VALUES(buy_price), sell_price = VALUES(sell_price)
+");
+$count = 0;
+foreach (readJson("item_pages.json", optional: true) as $page) {
+    if (isset($itemNames[$page["id"]])) {
+        $stmt->execute([$page["id"], $page["buy_price"] ?? 0, $page["sell_price"] ?? 0]);
+        $count++;
+    }
+}
+step("  $count prices from item pages");
+
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 3: recipes_*.json → recipes, recipe_inputs, recipe_outputs
 // ─────────────────────────────────────────────────────────────────────────────
@@ -245,7 +260,24 @@ foreach (RECIPE_SOURCES as $source) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 4: remove items that are no longer in items.json (removed from the game)
+// STEP 4: mastery.json → mastery_bonuses
+// ─────────────────────────────────────────────────────────────────────────────
+step("Importing mastery tables...");
+
+$mastery = readJson("mastery.json", optional: true);
+if ($mastery) {
+    $pdo->exec("DELETE FROM mastery_bonuses");
+    $stmt = $pdo->prepare("INSERT INTO mastery_bonuses (skill, mastery, product, rare, imperial) VALUES (?, ?, ?, ?, ?)");
+    foreach ($mastery as $skill => $rows) {
+        foreach ($rows as $row) {
+            $stmt->execute([$skill, $row["mastery"], $row["product"], $row["rare"], $row["imperial"]]);
+        }
+        step("  $skill: " . count($rows) . " rows");
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 5: remove items that are no longer in items.json (removed from the game)
 // ─────────────────────────────────────────────────────────────────────────────
 $stale = array_diff($pdo->query("SELECT id FROM items")->fetchAll(PDO::FETCH_COLUMN), array_keys($itemNames));
 foreach (array_chunk($stale, 1000) as $chunk) {
