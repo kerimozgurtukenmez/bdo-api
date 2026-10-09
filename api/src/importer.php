@@ -1,5 +1,5 @@
 <?php
-// Data rules used while importing the bdocodex JSON files (import/import.php).
+// Data rules used while importing the bdocodex JSON files (bin/import.php).
 
 declare(strict_types=1);
 

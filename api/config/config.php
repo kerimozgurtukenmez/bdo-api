@@ -12,7 +12,7 @@ return [
         "charset" => "utf8mb4",
     ],
 
-    // Item icons are downloaded into public/icons by import/download_icons.php;
+    // Item icons are downloaded into public/icons by bin/download_icons.php;
     // icons not downloaded yet are linked from the source site.
     "icons" => [
         "dir"    => __DIR__ . "/../public/icons",

@@ -1,12 +1,11 @@
 <?php
 // ─────────────────────────────────────────────────────────────────────────────
-// Imports the bdocodex JSON dumps in this folder into the database.
+// Imports the bdocodex JSON files in data/ into the database.
 //
-//   php import/import.php           update items/details, replace all recipes
-//   php import/import.php --fresh   drop and recreate every table first
+//   php bin/import.php           update items/details, replace all recipes
+//   php bin/import.php --fresh   drop and recreate every table first
 //
-// Market prices from raw_item_prices.json are only used for items that have
-// no price yet; run update_prices.php to refresh prices.
+// Market prices are kept; bin/update_prices.php refreshes them.
 // ─────────────────────────────────────────────────────────────────────────────
 
 declare(strict_types=1);
@@ -27,17 +26,17 @@ $pdo   = db();
 $start = microtime(true);
 $warnings = [];
 
-// The data files are not in git: scrape.php writes items.json and the
-// recipes; item_descriptions.json and raw_item_prices.json are optional extras.
+// The data files are not in git: bin/scrape.php writes items.json and the
+// recipes; item_descriptions.json (item details) is an optional extra.
 function readJson(string $filename, bool $optional = false): array
 {
-    $path = __DIR__ . "/" . $filename;
+    $path = DATA_DIR . "/" . $filename;
     if (!is_file($path)) {
         if ($optional) {
             step("  $filename not found, skipped");
             return [];
         }
-        throw new RuntimeException("$filename not found - run import/scrape.php first");
+        throw new RuntimeException("$filename not found - run bin/scrape.php first");
     }
 
     $data = json_decode(file_get_contents($path), true);
@@ -114,10 +113,10 @@ $stmt = $pdo->prepare("
         warehouse_capacity = VALUES(warehouse_capacity)
 ");
 
-$count = $vendors = 0;
+$count = $vendors = $removed = 0;
 foreach (readJson("item_descriptions.json", optional: true) as $item) {
     if (!isset($itemNames[$item["id"]])) {
-        $warnings[] = "item_details: unknown item {$item['id']}";
+        $removed++;  // details of items no longer in the game
         continue;
     }
 
@@ -138,40 +137,10 @@ foreach (readJson("item_descriptions.json", optional: true) as $item) {
     $count++;
     $vendors += $vendorSold;
 }
-step("  $count item details ($vendors sold by NPC vendors)");
+step("  $count item details ($vendors sold by NPC vendors)" . ($removed ? ", $removed for removed items skipped" : ""));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 3: raw_item_prices.json → item_prices (only where no price exists yet)
-// ─────────────────────────────────────────────────────────────────────────────
-step("Importing seed prices...");
-
-$stmt = $pdo->prepare("
-    INSERT IGNORE INTO item_prices (item_id, base_price, current_stock, total_trades, price_min,
-                                    price_max, last_sold_price, last_sold_time)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-");
-
-$count = 0;
-foreach (readJson("raw_item_prices.json", optional: true) as $item) {
-    if (!isset($itemNames[$item["id"]])) {
-        continue;
-    }
-    $stmt->execute([
-        $item["id"],
-        $item["basePrice"] ?? 0,
-        $item["currentStock"] ?? 0,
-        $item["totalTrades"] ?? 0,
-        $item["priceMin"] ?? 0,
-        $item["priceMax"] ?? 0,
-        $item["lastSoldPrice"] ?? 0,
-        $item["lastSoldTime"] ?? 0,
-    ]);
-    $count += $stmt->rowCount();
-}
-step("  $count new prices");
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP 4: recipes_*.json → recipes, recipe_inputs, recipe_outputs
+// STEP 3: recipes_*.json → recipes, recipe_inputs, recipe_outputs
 // ─────────────────────────────────────────────────────────────────────────────
 
 $pdo->exec("DELETE FROM recipes");  // inputs/outputs are removed by ON DELETE CASCADE
@@ -276,7 +245,7 @@ foreach (RECIPE_SOURCES as $source) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 5: remove items that are no longer in items.json (removed from the game)
+// STEP 4: remove items that are no longer in items.json (removed from the game)
 // ─────────────────────────────────────────────────────────────────────────────
 $stale = array_diff($pdo->query("SELECT id FROM items")->fetchAll(PDO::FETCH_COLUMN), array_keys($itemNames));
 foreach (array_chunk($stale, 1000) as $chunk) {

@@ -1,6 +1,6 @@
 <?php
 // Parsing the list data bdocodex.com pages load (query.php → {"aaData": rows}).
-// Rows mix plain values with HTML snippets. Used by import/scrape.php.
+// Rows mix plain values with HTML snippets. Used by bin/scrape.php.
 
 declare(strict_types=1);
 

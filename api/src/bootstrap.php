@@ -5,6 +5,9 @@ declare(strict_types=1);
 
 const RECIPE_SOURCES = ["cooking", "alchemy", "processing"];
 
+// Downloaded data (bdocodex JSON, download cache); not in git
+const DATA_DIR = __DIR__ . "/../data";
+
 // XAMPP ships serialize_precision = 100, which makes json_encode print 0.98 as
 // 0.979999999999999982236431605997495353221893310546875
 ini_set("serialize_precision", "-1");

@@ -3,12 +3,12 @@
 // Downloads items and recipes from bdocodex.com (with the site owner's
 // permission) and writes the JSON files that import.php reads.
 //
-//   php import/scrape.php              use cached responses younger than 24h
-//   php import/scrape.php --refresh    always download again
+//   php bin/scrape.php              use cached responses younger than 24h
+//   php bin/scrape.php --refresh    always download again
 //
 // Four requests in total: the item list and the cooking, alchemy and
 // processing recipe lists (the same data the bdocodex list pages load).
-// Raw responses are cached in import/cache/. Nothing is written unless every
+// Raw responses are cached in data/cache/. Nothing is written unless every
 // response parses and looks complete, and a summary of what changed since the
 // previous files is printed.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -20,12 +20,13 @@ if (PHP_SAPI !== "cli") {
     exit("Run this script from the command line.\n");
 }
 
+require __DIR__ . "/../src/bootstrap.php";
 require __DIR__ . "/../src/bdocodex.php";
 
 set_time_limit(0);
 ini_set("memory_limit", "3G");
 
-const CACHE_DIR     = __DIR__ . "/cache";
+const CACHE_DIR     = DATA_DIR . "/cache";
 const CACHE_MAX_AGE = 24 * 3600;
 const REQUEST_DELAY = 3;  // seconds between requests
 const USER_AGENT    = "bdo-craft-calculator (data import, permitted by bdocodex)";
@@ -142,7 +143,7 @@ $files = [
 
 echo "\nWriting...\n";
 foreach ($files as $name => $file) {
-    $path = __DIR__ . "/$file";
+    $path = DATA_DIR . "/$file";
     $fingerprint = $name === "items"
         ? fn($r) => [$r["name"], $r["grade"], $r["icon"]]
         : fn($r) => [$r["name"], $r["skill_level"], $r["ingredients"], $r["output"], $r["ingredient_ids"]];

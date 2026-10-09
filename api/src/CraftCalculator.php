@@ -75,7 +75,7 @@ final class CraftCalculator
             $this->warnings[] = "Recipe loop cut, bought instead: " . implode(", ", $names);
         }
 
-        $tree = $this->node($itemId, $qty, null, 0);
+        $tree = $this->node($itemId, $qty, null);
         if ($this->treeNodes >= self::MAX_TREE_NODES) {
             $this->warnings[] = "Tree truncated at " . self::MAX_TREE_NODES . " nodes; totals are still complete";
         }
@@ -404,7 +404,7 @@ final class CraftCalculator
     // Tree: the same recipes, unfolded per branch for display
     // ─────────────────────────────────────────────────────────────────────────
 
-    private function node(int $itemId, int $qty, ?array $slot, int $depth): array
+    private function node(int $itemId, int $qty, ?array $slot): array
     {
         $this->treeNodes++;
 
@@ -455,7 +455,7 @@ final class CraftCalculator
         $cost = 0;
         $complete = true;
         foreach ($this->edges[$itemId] as $child) {
-            $childNode = $this->node($child["item_id"], $crafts * $child["per_craft"], $child, $depth + 1);
+            $childNode = $this->node($child["item_id"], $crafts * $child["per_craft"], $child);
             $node["children"][] = $childNode;
             $cost += $childNode["cost"] ?? 0;
             $complete = $complete && $childNode["cost_complete"];

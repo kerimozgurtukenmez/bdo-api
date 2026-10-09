@@ -3,7 +3,7 @@
 // Downloads the icons of every recipe and every item used in a recipe into
 // public/icons/, so the site does not depend on hotlinking the source site.
 //
-//   php import/download_icons.php
+//   php bin/download_icons.php
 //
 // Icons already on disk are skipped, so an interrupted run can simply be
 // started again. Run it after import.php when new recipes arrive.

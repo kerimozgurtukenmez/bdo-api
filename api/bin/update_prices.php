@@ -3,9 +3,9 @@
 // Refreshes Central Market prices from arsha.io for every item used in a
 // recipe (ingredients, substitutes and products).
 //
-//   php import/update_prices.php              recipe items not updated in the last hour
-//   php import/update_prices.php --force      all recipe items
-//   php import/update_prices.php 9065 7313    only these item ids
+//   php bin/update_prices.php              recipe items not updated in the last hour
+//   php bin/update_prices.php --force      all recipe items
+//   php bin/update_prices.php 9065 7313    only these item ids
 //
 // The market API rate-limits; failed batches are skipped and picked up by the
 // next run, since only stale prices are fetched.
