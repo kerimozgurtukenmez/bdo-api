@@ -5,7 +5,8 @@
 // GET recipes.php                            list, filters:
 //       source=cooking|alchemy|processing  category=Heating  skill=Apprentice
 //       search=sauce  item_id=9003 (makes it, also as byproduct)  ingredient_id=9065 (uses it)
-//       with_ingredients=1 (default ingredients of each recipe)  page=1  limit=50
+//       ingredient_id also matches substitutes
+//       with_ingredients=1 (ingredient slots with their substitutes, and rare products)  page=1  limit=50
 
 declare(strict_types=1);
 
@@ -77,6 +78,7 @@ if ($itemId !== null && param_bool("grouped")) {
     // Same recipes, in the same order, as the calculator considers
     $recipes = (new CraftCalculator(db()))->recipesFor($itemId);
     $slots   = recipe_slots($recipes);
+    $rare    = recipe_rare_products($recipes);
 
     $groups = [];
     foreach ($recipes as $i => $recipe) {
@@ -98,6 +100,7 @@ if ($itemId !== null && param_bool("grouped")) {
             "output_max"  => $recipe["output_max"],
             "is_default"  => $i === 0,
             "ingredients" => $slots[$key] ?? [],
+            "rare"        => $rare[$key] ?? [],
         ];
     }
 
@@ -156,12 +159,11 @@ $recipes = query("
 $recipes = array_map("format_recipe", $recipes);
 
 if (param_bool("with_ingredients")) {
-    $slots = recipe_slots($recipes, withAlternatives: false);
+    $slots = recipe_slots($recipes);
+    $rare  = recipe_rare_products($recipes);
     foreach ($recipes as &$recipe) {
-        $recipe["ingredients"] = array_map(function ($slot) {
-            unset($slot["alternatives"]);
-            return $slot;
-        }, $slots[$recipe["key"]] ?? []);
+        $recipe["ingredients"] = $slots[$recipe["key"]] ?? [];
+        $recipe["rare"]        = $rare[$recipe["key"]] ?? [];
     }
     unset($recipe);
 }

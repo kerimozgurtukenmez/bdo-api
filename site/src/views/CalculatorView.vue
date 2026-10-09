@@ -1,12 +1,14 @@
 <script setup>
 import { computed, provide, ref, watch } from 'vue'
 import { useCraftPlan } from '../composables/useCraftPlan.js'
+import { useMastery } from '../composables/useMastery.js'
 import { FAME_TIERS, useSettings } from '../composables/useSettings.js'
 import { useSettingsPanel } from '../composables/useSettingsPanel.js'
 import { itemRoute } from '../links.js'
 import ItemLink from '../components/ItemLink.vue'
 import { BUY_REASONS, PRICE_SOURCES, SKILLS, ago, number, plural, silver } from '../format.js'
 import ItemIcon from '../components/ItemIcon.vue'
+import RareProducts from '../components/RareProducts.vue'
 import SearchBox from '../components/SearchBox.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
 import SilverAmount from '../components/SilverAmount.vue'
@@ -24,7 +26,15 @@ const rootMastery = computed(() => {
   return source && source in playerSettings.mastery ? { skill: source, value: playerSettings.mastery[source] } : null
 })
 
+// Extra rare product chance from the player's cooking / alchemy mastery
+const { bonus: masteryBonus } = useMastery()
+function rareBonus(source) {
+  const mastery = playerSettings.mastery[source]
+  return mastery ? masteryBonus(source, mastery)?.rare || null : null
+}
+
 provide('planActions', actions)
+provide('rareBonus', rareBonus)
 provide('boughtByChoice', computed(() => new Set(settings.value.buy)))
 
 const EXAMPLES = [
@@ -233,6 +243,7 @@ async function copyMaterials() {
                     <div class="step-text">
                       <ItemLink :item="step.item" />
                       <span class="faint small">{{ step.recipe.category }}</span>
+                      <RareProducts :products="step.recipe.rare ?? []" :bonus="rareBonus(step.recipe.source)" class="step-rare" />
                     </div>
                     <div class="step-numbers num">
                       <span>{{ plural(step.crafts, 'craft') }}</span>
@@ -540,6 +551,11 @@ async function copyMaterials() {
   min-width: 0;
   font-size: var(--text-sm);
   font-weight: 500;
+}
+
+.step-rare {
+  margin-top: 2px;
+  font-weight: 400;
 }
 
 .step-numbers {

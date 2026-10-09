@@ -6,9 +6,12 @@ import { usePageMeta } from '../composables/usePageMeta.js'
 import { ago, number, plural, silver } from '../format.js'
 import { calculatorRoute, itemRoute, slugify } from '../links.js'
 import ErrorState from '../components/ErrorState.vue'
+import IngredientSlots from '../components/IngredientSlots.vue'
 import ItemIcon from '../components/ItemIcon.vue'
+import ItemLink from '../components/ItemLink.vue'
 import PaginationNav from '../components/PaginationNav.vue'
 import PriceChart from '../components/PriceChart.vue'
+import RareProducts from '../components/RareProducts.vue'
 import RecipeRow from '../components/RecipeRow.vue'
 import SampleBadge from '../components/SampleBadge.vue'
 import SegmentedControl from '../components/SegmentedControl.vue'
@@ -47,6 +50,7 @@ usePageMeta(
 )
 
 const craftable = computed(() => item.value?.made_by.length > 0)
+const hasSubstitutes = computed(() => makeRecipes.value.some((recipe) => recipe.ingredients.some((slot) => slot.alternatives.length)))
 const facts = computed(() => {
   const i = item.value
   if (!i) return []
@@ -232,23 +236,48 @@ watch(usedPage, () => item.value && loadUsedIn())
         <div v-if="!makeGroups" class="skeleton" style="height: 120px"></div>
         <ul v-else class="make-list">
           <li v-for="recipe in shownRecipes" :key="recipe.key" class="make-recipe">
-            <div class="make-head">
-              <SkillChip :source="recipe.source" :category="recipe.category" />
-              <span class="faint small">{{ recipe.skill_level }}</span>
-              <span class="faint small">{{ recipe.output_min === recipe.output_max ? recipe.output_min : `${recipe.output_min}–${recipe.output_max}` }} per craft</span>
-              <span v-if="recipe.is_default" class="badge badge-accent">Default</span>
+            <div class="make-info">
+              <div class="make-head">
+                <SkillChip :source="recipe.source" :category="recipe.category" />
+                <span class="faint small">{{ recipe.skill_level }}</span>
+                <span class="faint small">{{ recipe.output_min === recipe.output_max ? recipe.output_min : `${recipe.output_min}–${recipe.output_max}` }} per craft</span>
+                <span v-if="recipe.is_default" class="badge badge-accent">Default</span>
+              </div>
+              <RareProducts :products="recipe.rare ?? []" />
             </div>
-            <div class="make-ingredients">
-              <RouterLink v-for="ing in recipe.ingredients" :key="ing.slot" :to="itemRoute(ing)" :title="`${ing.name} × ${ing.qty_min}`">
-                <ItemIcon :item="ing" :size="32" :qty="ing.qty_min" />
-              </RouterLink>
-            </div>
+            <IngredientSlots :slots="recipe.ingredients" class="make-ingredients" />
             <RouterLink :to="calculatorRoute(item.id, recipe.key)" class="btn btn-secondary btn-sm">Calculate</RouterLink>
           </li>
         </ul>
+        <p v-if="makeGroups && hasSubstitutes" class="faint small">Ingredients in a dashed box can replace each other: use any one of them.</p>
         <button v-if="makeRecipes.length > SHOWN_RECIPES" class="btn btn-ghost btn-sm show-all" type="button" @click="showAllRecipes = !showAllRecipes">
           {{ showAllRecipes ? 'Show fewer' : `Show all ${number(makeRecipes.length)} recipes` }}
         </button>
+      </div>
+    </section>
+
+    <!-- Rare product of -->
+    <section v-if="item.rare_from?.length" class="card">
+      <div class="card-header">
+        <h2>Rare product of</h2>
+        <span class="faint small">{{ plural(item.rare_from.length, 'recipe') }}</span>
+      </div>
+      <div class="card-body">
+        <p class="muted small">Crafting these gives a slight chance of this item as well. The game does not publish the chance.</p>
+        <ul class="make-list">
+          <li v-for="recipe in item.rare_from" :key="recipe.key" class="make-recipe">
+            <ItemIcon :item="recipe.product" :size="32" />
+            <div class="make-info rare-of">
+              <ItemLink :item="recipe.product" />
+              <div class="make-head">
+                <SkillChip :source="recipe.source" :category="recipe.category" />
+                <span class="faint small">{{ recipe.qty_min === recipe.qty_max ? recipe.qty_min : `${recipe.qty_min}–${recipe.qty_max}` }} per rare proc</span>
+                <span v-if="recipe.requires" class="faint small">from {{ recipe.requires }}</span>
+              </div>
+            </div>
+            <RouterLink :to="calculatorRoute(recipe.product.id, recipe.key)" class="btn btn-secondary btn-sm">Calculate</RouterLink>
+          </li>
+        </ul>
       </div>
     </section>
 
@@ -409,24 +438,26 @@ dd {
   border-top: 0;
 }
 
+.make-info {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 220px;
+}
+
+.make-info.rare-of {
+  flex: 1;
+}
+
 .make-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2) var(--space-3);
-  min-width: 220px;
 }
 
 .make-ingredients {
-  display: flex;
   flex: 1;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.make-ingredients a {
-  display: inline-flex;
-  border-radius: var(--radius-sm);
 }
 
 .show-all {

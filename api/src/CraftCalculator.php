@@ -31,6 +31,7 @@ final class CraftCalculator
     private array $cycleItems = [];  // items bought because their recipe would loop
     private array $substituted = []; // default item ids a substitute was used for
     private array $productBonus = []; // life skill => extra products per craft from mastery
+    private array $rare       = [];  // "source:id" => rare products of a chosen recipe
     private array $warnings   = [];
     private int   $treeNodes  = 0;
 
@@ -55,6 +56,7 @@ final class CraftCalculator
         if ($this->mode === "cheapest") {
             $this->preferCheaper($itemId);
         }
+        $this->loadRareProducts();
         $this->loadItems($this->referencedItemIds());
 
         [$materials, $steps] = $this->totals($itemId, $qty);
@@ -513,10 +515,43 @@ final class CraftCalculator
         }
     }
 
-    // Every item the result mentions: crafted items, ingredients, substitutes
+    // Rare products of the chosen cooking / alchemy recipes, with the level the
+    // game text says they need (see rare_requirement). Their chance is not
+    // published, so they are listed but not counted in the totals.
+    private function loadRareProducts(): void
+    {
+        $chosen = array_filter($this->recipe, fn($r) => $r !== null && $r["source"] !== "processing");
+        if (!$chosen) {
+            return;
+        }
+
+        [$in, $params] = recipes_in(array_values($chosen), "ro.recipe_source", "ro.recipe_id");
+        $stmt = $this->pdo->prepare("
+            SELECT ro.recipe_source, ro.recipe_id, ro.item_id, ro.qty_min, ro.qty_max, d.description
+            FROM recipe_outputs ro
+            LEFT JOIN item_details d ON d.item_id = ro.item_id
+            WHERE $in AND ro.is_main = 0
+            ORDER BY ro.id
+        ");
+        $stmt->execute($params);
+        foreach ($stmt->fetchAll() as $row) {
+            $this->rare["{$row['recipe_source']}:{$row['recipe_id']}"][] = [
+                "item_id"  => $row["item_id"],
+                "qty_min"  => $row["qty_min"],
+                "qty_max"  => $row["qty_max"],
+                "requires" => rare_requirement($row["description"]),
+            ];
+        }
+    }
+
+    // Every item the result mentions: crafted items, ingredients, substitutes,
+    // rare products
     private function referencedItemIds(): array
     {
         $ids = array_keys($this->recipe);
+        foreach ($this->rare as $products) {
+            array_push($ids, ...array_column($products, "item_id"));
+        }
         foreach ($this->edges as $slots) {
             foreach ($slots as $slot) {
                 $ids[] = $slot["item_id"];
@@ -564,6 +599,11 @@ final class CraftCalculator
             "output_min"  => $recipe["output_min"],
             "output_max"  => $recipe["output_max"],
             "yield"       => $recipe["yield"],
+            "rare"        => array_map(
+                fn($rare) => $this->itemRef($rare["item_id"]) + array_diff_key($rare, ["item_id" => 0])
+                    + ["price" => item_price($this->items[$rare["item_id"]])],
+                $this->rare["{$recipe['source']}:{$recipe['id']}"] ?? []
+            ),
         ];
     }
 }

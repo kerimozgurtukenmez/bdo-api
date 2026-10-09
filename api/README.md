@@ -65,8 +65,8 @@ the tests are worked out by hand from it.
 
 `public/index.php` lists them with examples.
 
-- `items.php` — `?id=` one item (details, price, recipes that make it) or `?search=` (`craftable=1`, `source=`)
-- `recipes.php` — `?source=&id=` one recipe, `?item_id=&grouped=1` recipes for an item, `?categories=1`, or a filtered list
+- `items.php` — `?id=` one item (details, price, recipes that make it, recipes it is a rare product of) or `?search=` (`craftable=1`, `source=`)
+- `recipes.php` — `?source=&id=` one recipe, `?item_id=&grouped=1` recipes for an item, `?categories=1`, or a filtered list (`with_ingredients=1`: ingredient slots with substitutes, and rare products)
 - `craft.php?item_id=&qty=` — crafting plan: materials to buy, steps in crafting order, cost and the recipe tree
   - `mode=cheapest` buys intermediates when the market price is lower than crafting them
   - `recipe[item]=source:id`, `buy=id,id`, `substitute[item]=item`, `yield=min|avg|max`
@@ -82,8 +82,8 @@ Every response is JSON; errors are `{"error": "..."}` with a 4xx/5xx status.
 - Source data is scraped from bdocodex (`data/*.json`).
 - Each recipe slot has a default ingredient and optional substitutes (`recipe_inputs.slot`); a substitute can need a different amount (Purified Water ×3 for Mineral Water ×6).
 - bdocodex lists some cooking and alchemy recipes again for fixed ingredient combinations. The importer folds these variants into the main recipe (named after the product); a variant that differs in more than one ingredient stays a recipe of its own. Processing recipes are not folded.
-- `recipe_outputs.is_main` marks the product a recipe is for. The others are byproducts and rare procs.
+- `recipe_outputs.is_main` marks the product a recipe is for. The other outputs of cooking and alchemy recipes are rare products (Cold Draft Beer when making Beer); in processing they are byproducts. The game does not publish the rare chance; the API gives the life skill level it needs, read from the item description (`rare_requirement()`). Rare products are listed in the calculator but not counted in its totals.
 - Recipes without ingredients or products in the scrape (about 230 processing recipes) are skipped.
 - Prices: `item_price()` uses the market base price, or the NPC price for items whose description says a vendor sells them. `item_details.buy_price` alone is not a real price.
-- Yield per craft is the average of the recipe's output range, plus the mastery's extra products for cooking and alchemy. Rare procs and processing mastery are not modelled.
+- Yield per craft is the average of the recipe's output range, plus the mastery's extra products for cooking and alchemy. Rare products and processing mastery are not counted.
 - Price history starts the day prices were first updated; it is not backfilled.

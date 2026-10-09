@@ -69,7 +69,28 @@ function recipe_slots(array $recipes, bool $withAlternatives = true): array
     return array_map("array_values", $result);
 }
 
-// Products per recipe: "source:id" => [output, ...], main product first
+// Cooking and alchemy crafts have a slight chance to give a better product as
+// well (Cold Draft Beer when making Beer). The game does not publish the
+// chance; the item description names the level it needs:
+//   "Slight chance of obtaining Cold Draft Beer when making Beer if at least Cooking Skilled 1" → "Skilled 1"
+function rare_requirement(?string $description): ?string
+{
+    $tiers = implode("|", SKILL_TIERS);
+    return preg_match("/chance[^()]*?if at least (?:Cooking|Alchemy) ($tiers) (\\d+)/i", $description ?? "", $m)
+        ? "$m[1] $m[2]"
+        : null;
+}
+
+// What a recipe output is: its main product, a rare product (cooking and
+// alchemy) or another product of a process
+function output_kind(string $source, bool $isMain): string
+{
+    return $isMain ? "main" : ($source === "processing" ? "byproduct" : "rare");
+}
+
+// Products per recipe: "source:id" => [output, ...], main product first.
+// Each output has a "kind" (see output_kind) and, for rare products, the
+// life skill level they need ("requires", null when the game text names none).
 function recipe_outputs(array $recipes): array
 {
     if (!$recipes) {
@@ -79,7 +100,7 @@ function recipe_outputs(array $recipes): array
     [$in, $params] = recipes_in($recipes, "ro.recipe_source", "ro.recipe_id");
     $rows = query("
         SELECT ro.recipe_source, ro.recipe_id, ro.item_id, ro.qty_min, ro.qty_max, ro.is_main,
-               i.name, i.icon, i.grade, i.grade_name, " . PRICE_COLUMNS . "
+               i.name, i.icon, i.grade, i.grade_name, d.description, " . PRICE_COLUMNS . "
         FROM recipe_outputs ro
         JOIN items i             ON i.id      = ro.item_id
         LEFT JOIN item_details d ON d.item_id = ro.item_id
@@ -94,11 +115,22 @@ function recipe_outputs(array $recipes): array
         $out = with_price($row);
         $out["icon"] = icon_url($out["icon"]);
         $out["is_main"] = (bool)$out["is_main"];
-        unset($out["recipe_source"], $out["recipe_id"]);
+        $out["kind"]    = output_kind($row["recipe_source"], $out["is_main"]);
+        $out["requires"] = $out["kind"] === "rare" ? rare_requirement($row["description"]) : null;
+        unset($out["recipe_source"], $out["recipe_id"], $out["description"]);
         $result[$key][] = $out;
     }
 
     return $result;
+}
+
+// Rare products per recipe: "source:id" => [output, ...] (see recipe_outputs)
+function recipe_rare_products(array $recipes): array
+{
+    return array_map(
+        fn($outputs) => array_values(array_filter($outputs, fn($out) => $out["kind"] === "rare")),
+        recipe_outputs($recipes)
+    );
 }
 
 // Typed recipe row for JSON output

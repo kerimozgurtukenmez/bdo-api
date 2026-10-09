@@ -103,16 +103,23 @@ function fold_recipe_variants(array $recipes, array $itemNames): array
         usort($ids, fn($a, $b) => $rank($a) <=> $rank($b));
         $mainId = array_shift($ids);
 
-        foreach ($ids as $id) {
-            $slots = fold_variant($recipes[$mainId]["slots"], $recipes[$id]["slots"]);
-            if ($slots !== null) {
-                $recipes[$mainId]["slots"] = $slots;
-                $folded[] = $id;
-                unset($recipes[$id]);
+        // A variant may only fit once a later one has added its substitute
+        // (Dressing 474 needs both 475's and 547's), so repeat until none fits
+        do {
+            $changed = false;
+            foreach ($ids as $i => $id) {
+                $slots = fold_variant($recipes[$mainId]["slots"], $recipes[$id]["slots"]);
+                if ($slots !== null) {
+                    $recipes[$mainId]["slots"] = $slots;
+                    $folded[] = $id;
+                    unset($recipes[$id], $ids[$i]);
+                    $changed = true;
+                }
             }
-        }
+        } while ($changed && $ids);
     }
 
+    sort($folded);
     return [$recipes, $folded];
 }
 

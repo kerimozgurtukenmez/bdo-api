@@ -1,5 +1,6 @@
 <?php
-// GET items.php?id=9065                  one item: details, price, recipes that make it
+// GET items.php?id=9065                  one item: details, price, recipes that make it,
+//                                        recipes it is a rare product of
 // GET items.php?search=milk              search by name (exact and prefix matches first)
 //              &craftable=1              only items some recipe makes
 //              &source=cooking           only items made with this life skill
@@ -8,6 +9,7 @@
 declare(strict_types=1);
 
 require __DIR__ . "/../src/bootstrap.php";
+require __DIR__ . "/../src/recipes.php";
 api_init();
 
 $id = param_int("id");
@@ -41,6 +43,38 @@ if ($id !== null) {
         WHERE ro.item_id = ? AND ro.is_main = 1
         ORDER BY r.source, r.id
     ", [$id])->fetchAll();
+
+    // Cooking / alchemy recipes that give this item as their rare product,
+    // with the product they are made for
+    $requires = rare_requirement($item["description"]);
+    $item["rare_from"] = array_map(fn($row) => [
+        "source"      => $row["source"],
+        "id"          => $row["id"],
+        "key"         => recipe_key($row),
+        "name"        => $row["name"],
+        "category"    => $row["category"],
+        "skill_level" => $row["skill_level"],
+        "qty_min"     => $row["qty_min"],
+        "qty_max"     => $row["qty_max"],
+        "requires"    => $requires,
+        "product"     => [
+            "id"         => $row["product_id"],
+            "name"       => $row["product_name"],
+            "grade"      => $row["product_grade"],
+            "grade_name" => $row["product_grade_name"],
+            "icon"       => icon_url($row["product_icon"]),
+        ],
+    ], query("
+        SELECT r.source, r.id, r.name, r.category, r.skill_level, ro.qty_min, ro.qty_max,
+               p.id AS product_id, p.name AS product_name, p.grade AS product_grade,
+               p.grade_name AS product_grade_name, p.icon AS product_icon
+        FROM recipe_outputs ro
+        JOIN recipes r         ON r.source = ro.recipe_source AND r.id = ro.recipe_id
+        JOIN recipe_outputs mo ON mo.recipe_source = r.source AND mo.recipe_id = r.id AND mo.is_main = 1
+        JOIN items p           ON p.id = mo.item_id
+        WHERE ro.item_id = ? AND ro.is_main = 0 AND r.source <> 'processing'
+        ORDER BY r.source, r.skill_sort, r.id
+    ", [$id])->fetchAll());
 
     $item["used_in_recipes"] = (int)query("
         SELECT COUNT(DISTINCT recipe_source, recipe_id) FROM recipe_inputs WHERE item_id = ?

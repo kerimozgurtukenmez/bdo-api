@@ -4,6 +4,7 @@ import { api } from '../api.js'
 import { BUY_REASONS, number, plural, silver } from '../format.js'
 import ItemIcon from './ItemIcon.vue'
 import ItemLink from './ItemLink.vue'
+import RareProducts from './RareProducts.vue'
 import SilverAmount from './SilverAmount.vue'
 import SkillChip from './SkillChip.vue'
 
@@ -16,15 +17,28 @@ const props = defineProps({
 // buy / craft / recipe / substitute, from useCraftPlan()
 const actions = inject('planActions')
 const boughtByChoice = inject('boughtByChoice')
+// life skill => extra rare chance from the player's mastery
+const rareBonus = inject('rareBonus', () => null)
 
 const open = ref(props.depth < 2)
 const children = computed(() => props.node.children ?? [])
 const isCraft = computed(() => props.node.action === 'craft')
 const substitutes = computed(() => props.node.slot?.alternatives ?? [])
+// A few substitutes are shown as buttons, many (any fish) as a list
+const MAX_BUTTONS = 5
+const cheapestSubstitute = computed(() => {
+  const priced = substitutes.value.filter((alt) => alt.price)
+  if (priced.length < 2) return null
+  return priced.reduce((best, alt) => (alt.qty * alt.price.unit < best.qty * best.price.unit ? alt : best)).id
+})
+
+function useSubstitute(id) {
+  if (id !== props.node.item.id) actions.substitute(props.node.slot.default_item_id, id)
+}
 const canBuyInstead = computed(() => props.depth > 0 && isCraft.value)
 const canCraftInstead = computed(() => !isCraft.value && boughtByChoice.value.has(props.node.item.id))
 const canPickRecipe = computed(() => isCraft.value && props.node.recipe.other_recipes > 0)
-const hasActions = computed(() => substitutes.value.length > 1 || canBuyInstead.value || canCraftInstead.value || canPickRecipe.value)
+const hasActions = computed(() => canBuyInstead.value || canCraftInstead.value || canPickRecipe.value)
 
 // ── Recipe picker ──────────────────────────────────────────────────────
 const picking = ref(false)
@@ -91,6 +105,7 @@ function pick(key) {
             <SkillChip :source="node.recipe.source" :category="node.recipe.category" />
             <span>{{ plural(node.recipe.crafts, 'craft') }}</span>
             <span class="faint">{{ node.recipe.output_min === node.recipe.output_max ? node.recipe.output_min : `${node.recipe.output_min}–${node.recipe.output_max}` }} per craft</span>
+            <RareProducts :products="node.recipe.rare ?? []" :bonus="rareBonus(node.recipe.source)" />
           </template>
           <template v-else>
             <span v-if="node.price">{{ silver(node.price.unit) }} each · {{ node.price.source === 'vendor' ? 'NPC' : 'market' }}</span>
@@ -105,19 +120,39 @@ function pick(key) {
       </div>
     </div>
 
-    <div v-if="hasActions" class="actions">
-      <label v-if="substitutes.length > 1" class="substitute">
-        <span class="visually-hidden">Ingredient for this slot</span>
-        <select
-          class="select select-sm"
-          :value="node.item.id"
-          @change="actions.substitute(node.slot.default_item_id, Number($event.target.value))"
+    <div v-if="substitutes.length > 1" class="substitutes" role="group" :aria-label="`Ingredient to use instead of ${node.item.name}`">
+      <span class="substitutes-label">Use</span>
+      <template v-if="substitutes.length <= MAX_BUTTONS">
+        <button
+          v-for="alt in substitutes"
+          :key="alt.id"
+          class="substitute"
+          :class="{ current: alt.id === node.item.id }"
+          type="button"
+          :aria-pressed="alt.id === node.item.id"
+          @click="useSubstitute(alt.id)"
         >
-          <option v-for="alt in substitutes" :key="alt.id" :value="alt.id">
-            {{ alt.name }} × {{ alt.qty }}{{ alt.price ? ` — ${silver(alt.price.unit)} each` : '' }}
-          </option>
-        </select>
-      </label>
+          <ItemIcon :item="alt" :size="20" />
+          <span>{{ alt.name }} <span class="num">× {{ alt.qty }}</span></span>
+          <span v-if="alt.price" class="faint num">{{ silver(alt.price.unit) }} each</span>
+          <span v-if="alt.id === cheapestSubstitute" class="cheapest">Cheapest</span>
+        </button>
+      </template>
+      <select
+        v-else
+        class="select select-sm"
+        :value="node.item.id"
+        aria-label="Ingredient for this slot"
+        @change="useSubstitute(Number($event.target.value))"
+      >
+        <option v-for="alt in substitutes" :key="alt.id" :value="alt.id">
+          {{ alt.name }} × {{ alt.qty }}{{ alt.price ? ` — ${silver(alt.price.unit)} each` : '' }}{{ alt.id === cheapestSubstitute ? ' (cheapest)' : '' }}
+        </option>
+      </select>
+      <span v-if="substitutes.length > MAX_BUTTONS" class="faint small">{{ substitutes.length }} options</span>
+    </div>
+
+    <div v-if="hasActions" class="actions">
       <button v-if="canBuyInstead" class="btn btn-ghost btn-sm" type="button" @click="actions.buy(node.item.id)">Buy instead</button>
       <button v-if="canCraftInstead" class="btn btn-ghost btn-sm" type="button" @click="actions.craft(node.item.id)">Craft instead</button>
       <button v-if="canPickRecipe" class="btn btn-ghost btn-sm" type="button" :aria-expanded="picking" @click="togglePicker">
@@ -256,8 +291,59 @@ function pick(key) {
 
 .select-sm {
   height: 28px;
-  max-width: 260px;
+  max-width: 300px;
   font-size: var(--text-xs);
+}
+
+/* ── Substitutes: the slot's interchangeable ingredients ─────────────── */
+.substitutes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  margin: 0 0 var(--space-2) 60px;
+  padding: var(--space-2);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius);
+}
+
+.substitutes-label {
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.substitute {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 var(--space-2);
+  max-width: 100%;
+  min-height: 30px;
+  padding: 2px var(--space-2) 2px var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: border-color 140ms var(--ease), background-color 140ms var(--ease);
+}
+
+.substitute:hover {
+  background: var(--surface-3);
+}
+
+.substitute.current {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  cursor: default;
+}
+
+.cheapest {
+  color: var(--positive);
+  font-weight: 500;
 }
 
 .picker {
@@ -331,6 +417,7 @@ function pick(key) {
 
 @media (max-width: 640px) {
   .actions,
+  .substitutes,
   .picker,
   .truncated {
     margin-left: 0;

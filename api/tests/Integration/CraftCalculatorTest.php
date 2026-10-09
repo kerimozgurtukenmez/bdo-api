@@ -61,6 +61,10 @@ final class CraftCalculatorTest extends TestCase
         TestDatabase::addRecipe($pdo, "cooking", 25, "Sauce", "Cooking", [[self::APPLE, 2, [[self::STRAWBERRY, 4]]]], [[self::SAUCE, 1, 1]]);
         TestDatabase::addRecipe($pdo, "processing", 32, "Egg", "Simple Cooking", [[self::EGG, 2]], [[self::EGG, 3, 3]]);
 
+        // Crumb is Bread's rare product
+        $pdo->prepare("INSERT INTO item_details (item_id, description) VALUES (?, ?)")
+            ->execute([self::CRUMB, "How to Obtain: Slight chance of obtaining Crumb when making Bread if at least Cooking Skilled 1"]);
+
         // Cooking mastery: +50% products from 1000
         $pdo->exec("INSERT INTO mastery_bonuses (skill, mastery, product, rare, imperial) VALUES ('cooking', 0, 0, 0, 0), ('cooking', 1000, 0.5, 0.1, 0.6)");
     }
@@ -139,6 +143,19 @@ final class CraftCalculatorTest extends TestCase
         $this->assertSame(self::APPLE, $slot["slot"]["default_item_id"]);
         $this->assertSame([self::APPLE, self::STRAWBERRY], array_column($slot["slot"]["alternatives"], "id"));
         $this->assertSame([], $plan["warnings"]);
+    }
+
+    public function testRareProductsAreListedButNotCounted(): void
+    {
+        $plan  = $this->plan(self::BREAD, 2);
+        $steps = array_column(array_map(fn($s) => [$s["item"]["name"], $s["recipe"]], $plan["steps"]), 1, 0);
+
+        $rare = $steps["Bread"]["rare"];
+        $this->assertSame([[self::CRUMB, "Crumb", 1, 1, "Skilled 1"]],
+            array_map(fn($r) => [$r["id"], $r["name"], $r["qty_min"], $r["qty_max"], $r["requires"]], $rare));
+        $this->assertSame([], $steps["Dough"]["rare"]);  // processing: no rare products
+        $this->assertSame($rare, $plan["tree"]["recipe"]["rare"]);
+        $this->assertArrayNotHasKey("Crumb", $this->materials($plan));
     }
 
     public function testSubstituteUsesItsOwnAmount(): void

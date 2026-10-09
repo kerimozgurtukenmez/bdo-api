@@ -1,18 +1,16 @@
 <script setup>
-import { number, silver } from '../format.js'
-import { calculatorRoute, itemRoute } from '../links.js'
+import { number } from '../format.js'
+import { calculatorRoute } from '../links.js'
+import IngredientSlots from './IngredientSlots.vue'
 import ItemIcon from './ItemIcon.vue'
 import ItemLink from './ItemLink.vue'
+import RareProducts from './RareProducts.vue'
 import SkillChip from './SkillChip.vue'
 
 defineProps({
   /** A recipe from recipes.php with with_ingredients=1 */
   recipe: { type: Object, required: true },
 })
-
-function ingredientTitle(ing) {
-  return `${ing.name} × ${ing.qty_min}${ing.price ? ` — ${silver(ing.price.unit)} each` : ''}`
-}
 </script>
 
 <template>
@@ -26,12 +24,9 @@ function ingredientTitle(ing) {
         <span class="faint">{{ recipe.skill_level }}</span>
         <span v-if="recipe.exp" class="faint">{{ number(recipe.exp) }} EXP</span>
       </span>
+      <RareProducts v-if="recipe.rare?.length" :products="recipe.rare" class="recipe-rare" />
     </div>
-    <div class="ingredients" aria-label="Ingredients">
-      <RouterLink v-for="ing in recipe.ingredients" :key="ing.slot" :to="itemRoute(ing)" :title="ingredientTitle(ing)">
-        <ItemIcon :item="ing" :size="32" :qty="ing.qty_min" />
-      </RouterLink>
-    </div>
+    <IngredientSlots :slots="recipe.ingredients ?? []" :shown="1" class="ingredients" />
     <RouterLink v-if="recipe.item_id" :to="calculatorRoute(recipe.item_id, recipe.key)" class="btn btn-secondary btn-sm">Calculate</RouterLink>
   </li>
 </template>
@@ -64,16 +59,13 @@ function ingredientTitle(ing) {
   font-size: var(--text-xs);
 }
 
-.ingredients {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  justify-content: flex-end;
+.recipe-rare {
+  margin-top: var(--space-1);
 }
 
-.ingredients a {
-  display: inline-flex;
-  border-radius: var(--radius-sm);
+.ingredients {
+  justify-content: flex-end;
+  max-width: 55%;
 }
 
 @media (max-width: 640px) {
@@ -84,6 +76,7 @@ function ingredientTitle(ing) {
   .ingredients {
     justify-content: flex-start;
     width: 100%;
+    max-width: none;
   }
 }
 </style>

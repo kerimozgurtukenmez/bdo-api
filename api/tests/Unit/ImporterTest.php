@@ -65,7 +65,7 @@ final class ImporterTest extends TestCase
     }
 
     // Beer on bdocodex: the main recipe and two fixed combinations of it
-    private const MINERAL_WATER = 9059, PURIFIED_WATER = 6656, CORN = 7006, LEAVENING = 9066, SUGAR = 9002, RAW_SUGAR = 9003;
+    private const MINERAL_WATER = 9059, PURIFIED_WATER = 6656, CORN = 7006, LEAVENING = 9066, SUGAR = 9002, RAW_SUGAR = 9003, HONEY = 9004;
 
     private static function slot(int $itemId, int $qty, array $alternatives = []): array
     {
@@ -111,6 +111,21 @@ final class ImporterTest extends TestCase
         $this->assertSame([200], $folded);
         $this->assertSame([122], array_keys($kept));
         $this->assertSame([self::PURIFIED_WATER => 3], $kept[122]["slots"][0]["alternatives"]);  // with its own amount
+    }
+
+    public function testVariantThatFitsOnlyAfterALaterOneIsFolded(): void
+    {
+        $recipes = self::beerRecipes(
+            // Purified Water and Honey: two new ingredients until 201 adds Purified Water
+            [self::slot(self::PURIFIED_WATER, 3), self::slot(self::CORN, 5), self::slot(self::LEAVENING, 2), self::slot(self::HONEY, 1)],
+            [self::slot(self::PURIFIED_WATER, 3), self::slot(self::CORN, 5), self::slot(self::LEAVENING, 2), self::slot(self::SUGAR, 1)],
+        );
+
+        [$kept, $folded] = fold_recipe_variants($recipes, [9213 => "Beer"]);
+
+        $this->assertSame([200, 201], $folded);
+        $this->assertSame([122], array_keys($kept));
+        $this->assertSame([self::RAW_SUGAR => 1, self::HONEY => 1], $kept[122]["slots"][3]["alternatives"]);
     }
 
     public function testRecipesThatDifferMoreAreKept(): void
