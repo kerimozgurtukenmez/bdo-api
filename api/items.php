@@ -1,100 +1,104 @@
 <?php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
+// GET items.php?id=9065                  one item: details, price, recipes that make it
+// GET items.php?search=milk              search by name (exact and prefix matches first)
+//              &craftable=1              only items some recipe makes
+//              &source=cooking           only items made with this life skill
+//              &page=1&limit=50
 
-require_once "../config/database.php";
-$pdo = connect();
+declare(strict_types=1);
 
-$id = $_GET["id"] ?? null;
+require __DIR__ . "/../src/bootstrap.php";
+api_init();
 
-if ($id) {
-    $stmt = $pdo->prepare("
-        SELECT 
-            i.id,
-            i.name,
-            i.grade,
-            i.grade_name,
-            i.icon,
-            i.link,
-            d.name_kr,
-            d.description,
-            d.category,
-            d.weight,
-            d.warehouse_capacity,
-            d.buy_price,
-            d.sell_price,
-            d.bound_on_obtain,
-            d.personal_trade,
-            p.base_price,
-            p.current_stock,
-            p.last_sold_price,
-            p.price_min,
-            p.price_max
+$id = param_int("id");
+
+// ── Single item ──────────────────────────────────────────────────────────────
+if ($id !== null) {
+    $item = query("
+        SELECT i.id, i.name, i.grade, i.grade_name, i.icon, i.link,
+               d.name_kr, d.description, d.category, d.weight, d.warehouse_capacity,
+               d.bound_on_obtain, d.personal_trade,
+               p.current_stock, p.total_trades, p.price_min, p.price_max, p.last_sold_time,
+               " . PRICE_COLUMNS . "
         FROM items i
         LEFT JOIN item_details d ON d.item_id = i.id
         LEFT JOIN item_prices  p ON p.item_id = i.id
         WHERE i.id = ?
-    ");
-    $stmt->execute([$id]);
-    $item = $stmt->fetch(PDO::FETCH_ASSOC);
+    ", [$id])->fetch();
 
     if (!$item) {
-        http_response_code(404);
-        echo json_encode(["error" => "Item not found"]);
-        exit;
-    }
-    
-    echo json_encode($item);
-} else {
-    $page = max(1, intval($_GET["page"] ?? 1));
-    $limit = 50;
-    $offset = ($page - 1) * $limit;
-
-    $limit = (int)$limit;
-    $offset = (int)$offset;
-
-    $search = $_GET["search"] ?? null;
-
-    if ($search) {
-        $stmt = $pdo->prepare("
-            SELECT i.id, i.name, i.grade, i.grade_name, i.icon
-            FROM items i
-            WHERE i.name LIKE ?
-            ORDER BY i.name ASC
-            LIMIT ? OFFSET ?
-        ");
-        $stmt->bindValue(1, "%" . $search . "%", PDO::PARAM_STR);
-        $stmt->bindValue(2, $limit, PDO::PARAM_INT);
-        $stmt->bindValue(3, $offset, PDO::PARAM_INT);
-        $stmt->execute();
-    } else {
-        $stmt = $pdo->prepare("
-            SELECT i.id, i.name, i.grade, i.grade_name, i.icon
-            FROM items i
-            ORDER BY i.id ASC
-            LIMIT ? OFFSET ?
-        ");
-        $stmt->bindValue(1, $limit, PDO::PARAM_INT);
-        $stmt->bindValue(2, $offset, PDO::PARAM_INT);
-        $stmt->execute();
+        throw new ApiError("Item not found", 404);
     }
 
-    $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    $item = with_price($item, keepRaw: true);
 
-    if ($search) {
-        $countStmt = $pdo->prepare("SELECT COUNT(*) FROM items WHERE name LIKE ?");
-        $countStmt->execute(["%" . $search . "%"]);
-    } else {
-        $countStmt = $pdo->query("SELECT COUNT(*) FROM items");
-    }
-    $total = $countStmt->fetchColumn();
+    // Recipes this item is the main product of
+    $item["made_by"] = query("
+        SELECT r.source, r.id, r.name, r.category, r.skill_level, ro.qty_min, ro.qty_max
+        FROM recipe_outputs ro
+        JOIN recipes r ON r.source = ro.recipe_source AND r.id = ro.recipe_id
+        WHERE ro.item_id = ? AND ro.is_main = 1
+        ORDER BY r.source, r.id
+    ", [$id])->fetchAll();
 
-    echo json_encode([
-        "data"          => $items,
-        "total"         => (int)$total,
-        "page"          => $page,
-        "per_page"      => $limit,
-        "total_pages"   => ceil($total / $limit)
-    ]);
+    $item["used_in_recipes"] = (int)query("
+        SELECT COUNT(DISTINCT recipe_source, recipe_id) FROM recipe_inputs WHERE item_id = ?
+    ", [$id])->fetchColumn();
+
+    json_out($item);
 }
-?>
+
+// ── List / search ────────────────────────────────────────────────────────────
+[$page, $limit, $offset] = pagination();
+$search    = param_str("search");
+$source    = param_enum("source", RECIPE_SOURCES);
+$craftable = param_bool("craftable") || $source !== null;
+
+$where  = [];
+$params = [];
+
+if ($search !== null) {
+    $where[]  = "i.name LIKE ?";
+    $params[] = like_contains($search);
+}
+
+if ($craftable) {
+    $where[] = "EXISTS (SELECT 1 FROM recipe_outputs ro WHERE ro.item_id = i.id AND ro.is_main = 1"
+             . ($source !== null ? " AND ro.recipe_source = ?" : "") . ")";
+    if ($source !== null) {
+        $params[] = $source;
+    }
+}
+
+$whereSql = $where ? "WHERE " . implode(" AND ", $where) : "";
+
+// Exact name first, then names starting with the search term
+$orderSql    = $search !== null ? "i.name = ? DESC, i.name LIKE ? DESC, i.name, i.id" : "i.id";
+$orderParams = $search !== null ? [$search, addcslashes($search, "%_\\") . "%"] : [];
+
+$rows = query("
+    SELECT i.id, i.name, i.grade, i.grade_name, i.icon,
+           (SELECT GROUP_CONCAT(DISTINCT ro.recipe_source ORDER BY ro.recipe_source)
+            FROM recipe_outputs ro WHERE ro.item_id = i.id AND ro.is_main = 1) AS sources,
+           " . PRICE_COLUMNS . "
+    FROM items i
+    LEFT JOIN item_details d ON d.item_id = i.id
+    LEFT JOIN item_prices  p ON p.item_id = i.id
+    $whereSql
+    ORDER BY $orderSql
+    LIMIT ? OFFSET ?
+", [...$params, ...$orderParams, $limit, $offset])->fetchAll();
+
+$items = array_map(fn($row) => [
+    "id"         => $row["id"],
+    "name"       => $row["name"],
+    "grade"      => $row["grade"],
+    "grade_name" => $row["grade_name"],
+    "icon"       => $row["icon"],
+    "sources"    => $row["sources"] ? explode(",", $row["sources"]) : [],  // life skills that make it
+    "price"      => item_price($row),
+], $rows);
+
+$total = (int)query("SELECT COUNT(*) FROM items i $whereSql", $params)->fetchColumn();
+
+json_out(paginated($items, $total, $page, $limit));

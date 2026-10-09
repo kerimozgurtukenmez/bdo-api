@@ -1,297 +1,150 @@
 <?php
-header("Content-Type: application/json");
-header("Access-Control-Allow-Origin: *");
+// GET recipes.php?source=cooking&id=106      one recipe with ingredient slots and products
+// GET recipes.php?item_id=9003&grouped=1     recipes that make an item, grouped by source/category
+// GET recipes.php                            list, filters:
+//       source=cooking|alchemy|processing  category=Heating  skill=Apprentice
+//       search=sauce  item_id=9003 (makes it, also as byproduct)  ingredient_id=9065 (uses it)
+//       with_ingredients=1 (default ingredients of each recipe)  page=1  limit=50
 
-require_once "../config/database.php";
-$pdo = connect();
+declare(strict_types=1);
 
-$id      = $_GET["id"]      ?? null;
-$source  = $_GET["source"]  ?? null;  // 'cooking', 'alchemy', 'processing'
-$category = $_GET["category"] ?? null; // 'Heating', 'Grinding' vb.
-$item_id  = $_GET["item_id"]  ?? null;
-$search   = $_GET["search"]   ?? null;
+require __DIR__ . "/../src/bootstrap.php";
+require __DIR__ . "/../src/recipes.php";
+require __DIR__ . "/../src/CraftCalculator.php";
+api_init();
 
-// ── Grouped: aynı çıktıyı veren tarifleri grupla ──────────────────────────
-if ($item_id && isset($_GET["grouped"])) {
+$id           = param_int("id");
+$source       = param_enum("source", RECIPE_SOURCES);
+$itemId       = param_int("item_id");
+$ingredientId = param_int("ingredient_id");
 
-    // Bu item'ı üreten tüm tarifleri bul
-    $stmt = $pdo->prepare("
-        SELECT
-            r.id,
-            r.source,
-            r.name,
-            r.category,
-            r.skill_level,
-            r.proc_rate,
-            r.proc_amount
-        FROM recipes r
-        WHERE EXISTS (
-            SELECT 1 FROM recipe_outputs ro
-            WHERE ro.recipe_id     = r.id
-            AND   ro.recipe_source = r.source
-            AND   ro.item_id       = ?
-        )
-        ORDER BY r.source ASC, r.category ASC
-    ");
-    $stmt->execute([$item_id]);
-    $recipes = $stmt->fetchAll(PDO::FETCH_ASSOC);
+const RECIPE_COLUMNS = "r.source, r.id, r.name, r.category, r.grade, r.grade_name, r.icon, r.link,
+                        r.skill_level, r.exp, r.ingredients_weight";
 
-    if (empty($recipes)) {
-        echo json_encode([
-            "item_id"  => (int)$item_id,
-            "recipes"  => [],
-            "message"  => "No recipes found for this item"
-        ]);
-        exit;
+// ── Single recipe ────────────────────────────────────────────────────────────
+if ($id !== null) {
+    if ($source === null) {
+        throw new ApiError("'source' is required with 'id' (recipe ids are unique per source)");
     }
 
-    // Her tarif için malzemeleri çek
-    $inputStmt = $pdo->prepare("
-        SELECT
-            ri.item_id,
-            ri.qty_min,
-            ri.qty_max,
-            ri.is_key,
-            ri.is_alternative,
-            ri.slot_item_id,
-            i.name,
-            i.icon,
-            i.grade,
-            i.grade_name,
-            d.buy_price,
-            d.sell_price,
-            p.last_sold_price
-        FROM recipe_inputs ri
-        JOIN  items i            ON i.id      = ri.item_id
-        LEFT JOIN item_details d ON d.item_id = ri.item_id
-        LEFT JOIN item_prices  p ON p.item_id = ri.item_id
-        WHERE ri.recipe_id     = ?
-        AND   ri.recipe_source = ?
-        ORDER BY ri.is_alternative ASC, ri.slot_item_id ASC, ri.id ASC
-    ");
+    $recipe = query("SELECT " . RECIPE_COLUMNS . " FROM recipes r WHERE r.source = ? AND r.id = ?", [$source, $id])->fetch();
+    if (!$recipe) {
+        throw new ApiError("Recipe not found", 404);
+    }
 
-    // Sonuçları kaynak + kategoriye göre grupla
-    // Örnek: cooking > Cooking, processing > Heating, processing > Grinding
-    $grouped = [];
+    $recipe = format_recipe($recipe);
+    $recipe["ingredients"] = recipe_slots([$recipe])[$recipe["key"]] ?? [];
+    $recipe["outputs"]     = recipe_outputs([$recipe])[$recipe["key"]] ?? [];
 
-    foreach ($recipes as $recipe) {
-        $key = $recipe["source"] . "_" . $recipe["category"];
+    json_out($recipe);
+}
 
-        if (!isset($grouped[$key])) {
-            $grouped[$key] = [
-                "source"      => $recipe["source"],
-                "category"    => $recipe["category"],
-                "skill_level" => $recipe["skill_level"],
-                "proc_rate"   => $recipe["proc_rate"],
-                "proc_amount" => $recipe["proc_amount"],
-                "recipes"     => []
-            ];
-        }
+// ── Recipes that make an item, grouped ───────────────────────────────────────
+if ($itemId !== null && param_bool("grouped")) {
+    $item = query("
+        SELECT i.id, i.name, i.icon, i.grade, i.grade_name, " . PRICE_COLUMNS . "
+        FROM items i
+        LEFT JOIN item_details d ON d.item_id = i.id
+        LEFT JOIN item_prices  p ON p.item_id = i.id
+        WHERE i.id = ?
+    ", [$itemId])->fetch();
 
-        // Malzemeleri çek
-        $inputStmt->execute([$recipe["id"], $recipe["source"]]);
-        $ingredients = $inputStmt->fetchAll(PDO::FETCH_ASSOC);
+    if (!$item) {
+        throw new ApiError("Item not found", 404);
+    }
 
-        $grouped[$key]["recipes"][] = [
+    // Same recipes, in the same order, as the calculator considers
+    $recipes = (new CraftCalculator(db()))->recipesFor($itemId);
+    $slots   = recipe_slots($recipes);
+
+    $groups = [];
+    foreach ($recipes as $i => $recipe) {
+        $groupKey = "{$recipe['source']}_{$recipe['category']}";
+        $groups[$groupKey] ??= [
+            "source"   => $recipe["source"],
+            "category" => $recipe["category"],
+            "recipes"  => [],
+        ];
+
+        $key = recipe_key($recipe);
+        $groups[$groupKey]["recipes"][] = [
+            "key"         => $key,
             "recipe_id"   => $recipe["id"],
-            "ingredients" => $ingredients
+            "name"        => $recipe["name"],
+            "skill_level" => $recipe["skill_level"],
+            "exp"         => $recipe["exp"],
+            "output_min"  => $recipe["output_min"],
+            "output_max"  => $recipe["output_max"],
+            "is_default"  => $i === 0,
+            "ingredients" => $slots[$key] ?? [],
         ];
     }
 
-    // Output item bilgisini de ekle
-    $itemStmt = $pdo->prepare("
-        SELECT i.id, i.name, i.icon, i.grade, i.grade_name,
-               p.last_sold_price, p.base_price, d.buy_price, d.sell_price
-        FROM items i
-        LEFT JOIN item_prices  p ON p.item_id = i.id
-        LEFT JOIN item_details d ON d.item_id = i.id
-        WHERE i.id = ?
-    ");
-    $itemStmt->execute([$item_id]);
-    $outputItem = $itemStmt->fetch(PDO::FETCH_ASSOC);
-
-    echo json_encode([
-        "output_item"   => $outputItem,
+    json_out([
+        "output_item"   => with_price($item),
         "total_recipes" => count($recipes),
-        "groups"        => array_values($grouped)
-    ]);
-    exit;
-}
-
-if ($id && $source) {
-    // ── Tek tarif: malzemeleri ve çıktılarıyla birlikte getir ──────────────
-    $stmt = $pdo->prepare("
-        SELECT r.*
-        FROM recipes r
-        WHERE r.id = ? AND r.source = ?
-    ");
-    $stmt->execute([$id, $source]);
-    $recipe = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    if (!$recipe) {
-        http_response_code(404);
-        echo json_encode(["error" => "Recipe not found"]);
-        exit;
-    }
-
-    // Malzemeleri getir
-    $inputStmt = $pdo->prepare("
-        SELECT
-            ri.item_id,
-            ri.qty_min,
-            ri.qty_max,
-            ri.is_key,
-            ri.is_alternative,
-            ri.slot_item_id,
-            i.name,
-            i.icon,
-            i.grade,
-            i.grade_name,
-            d.buy_price,
-            d.sell_price,
-            p.last_sold_price
-        FROM recipe_inputs ri
-        JOIN items i             ON i.id       = ri.item_id
-        LEFT JOIN item_details d ON d.item_id  = ri.item_id
-        LEFT JOIN item_prices  p ON p.item_id  = ri.item_id
-        WHERE ri.recipe_id = ? AND ri.recipe_source = ?
-        ORDER BY ri.is_alternative ASC, ri.slot_item_id ASC, ri.id ASC
-    ");
-    $inputStmt->execute([$id, $source]);
-    $ingredients = $inputStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Çıktıları getir
-    $outputStmt = $pdo->prepare("
-        SELECT
-            ro.item_id,
-            ro.qty_min,
-            ro.qty_max,
-            i.name,
-            i.icon,
-            i.grade,
-            i.grade_name,
-            p.last_sold_price,
-            p.base_price
-        FROM recipe_outputs ro
-        JOIN items i            ON i.id      = ro.item_id
-        LEFT JOIN item_prices p ON p.item_id = ro.item_id
-        WHERE ro.recipe_id = ? AND ro.recipe_source = ?
-    ");
-    $outputStmt->execute([$id, $source]);
-    $outputs = $outputStmt->fetchAll(PDO::FETCH_ASSOC);
-
-    $recipe["ingredients"] = $ingredients;
-    $recipe["outputs"]     = $outputs;
-
-    echo json_encode($recipe);
-} else {
-    // ── Liste ───────────────────────────────────────────────────────────────
-    $page   = max(1, intval($_GET["page"] ?? 1));
-    $limit  = (int)50;
-    $offset = (int)(($page - 1) * $limit);
-
-    $where  = [];
-    $params = [];
-
-    // source filtresi: cooking, alchemy, processing
-    if ($source) {
-        $where[]  = "r.source = ?";
-        $params[] = $source;
-    }
-
-    // category filtresi: Heating, Grinding, Chopping vb.
-    if ($category) {
-        $where[]  = "r.category = ?";
-        $params[] = $category;
-    }
-
-    // Bu item_id'yi çıktı olarak üreten tarifler
-    if ($item_id) {
-        $where[]  = "EXISTS (SELECT 1 FROM recipe_outputs ro WHERE ro.recipe_id = r.id AND ro.recipe_source = r.source AND ro.item_id = ?)";
-        $params[] = $item_id;
-    }
-
-    // İsme göre arama
-    if ($search) {
-        $where[]  = "r.name LIKE ?";
-        $params[] = "%" . $search . "%";
-    }
-
-    $whereSQL = count($where) > 0 ? "WHERE " . implode(" AND ", $where) : "";
-
-    $stmt = $pdo->prepare("
-        SELECT
-            r.id,
-            r.source,
-            r.name,
-            r.category,
-            r.grade,
-            r.grade_name,
-            r.icon,
-            r.skill_level,
-            r.exp,
-            r.proc_rate,
-            r.proc_amount
-        FROM recipes r
-        $whereSQL
-        ORDER BY r.source ASC, r.category ASC, r.skill_sort ASC
-        LIMIT ? OFFSET ?
-    ");
-
-    $i = 1;
-    foreach ($params as $param) {
-        $stmt->bindValue($i, $param, PDO::PARAM_STR);
-        $i++;
-    }
-    $stmt->bindValue($i,     $limit,  PDO::PARAM_INT);
-    $stmt->bindValue($i + 1, $offset, PDO::PARAM_INT);
-    $stmt->execute();
-
-    $recipes = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-    // Toplam sayı
-    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM recipes r $whereSQL");
-    $i = 1;
-    foreach ($params as $param) {
-        $countStmt->bindValue($i, $param, PDO::PARAM_STR);
-        $i++;
-    }
-    $countStmt->execute();
-    $total = $countStmt->fetchColumn();
-    // with_ingredients=1 gelirse her tarifin malzemelerini de ekle
-    if (isset($_GET["with_ingredients"])) {
-        $ingStmt = $pdo->prepare("
-            SELECT
-                ri.item_id,
-                ri.qty_min,
-                ri.qty_max,
-                i.name,
-                i.icon,
-                i.grade,
-                i.grade_name,
-                d.buy_price,
-                d.sell_price,
-                p.last_sold_price
-            FROM recipe_inputs ri
-            JOIN items i             ON i.id      = ri.item_id
-            LEFT JOIN item_details d ON d.item_id = ri.item_id
-            LEFT JOIN item_prices  p ON p.item_id = ri.item_id
-            WHERE ri.recipe_id = ? AND ri.recipe_source = ?
-            AND ri.is_alternative = 0
-            ORDER BY ri.is_key DESC, ri.id ASC
-        ");
-        foreach ($recipes as &$recipe) {
-            $ingStmt->execute([$recipe["id"], $recipe["source"]]);
-            $recipe["ingredients"] = $ingStmt->fetchAll(PDO::FETCH_ASSOC);
-        }
-        unset($recipe);
-    }
-
-    echo json_encode([
-        "data"        => $recipes,
-        "total"       => (int)$total,
-        "page"        => $page,
-        "per_page"    => $limit,
-        "total_pages" => ceil($total / $limit)
+        "default"       => $recipes ? recipe_key($recipes[0]) : null,
+        "groups"        => array_values($groups),
     ]);
 }
+
+// ── List ─────────────────────────────────────────────────────────────────────
+[$page, $limit, $offset] = pagination();
+$category = param_str("category");
+$skill    = param_enum("skill", SKILL_TIERS);
+$search   = param_str("search");
+
+$where  = [];
+$params = [];
+
+if ($source !== null) {
+    $where[]  = "r.source = ?";
+    $params[] = $source;
+}
+if ($category !== null) {
+    $where[]  = "r.category = ?";
+    $params[] = $category;
+}
+if ($skill !== null) {
+    $where[]  = "r.skill_level LIKE ?";
+    $params[] = "$skill %";
+}
+if ($search !== null) {
+    $where[]  = "r.name LIKE ?";
+    $params[] = like_contains($search);
+}
+if ($itemId !== null) {
+    $where[]  = "EXISTS (SELECT 1 FROM recipe_outputs ro WHERE ro.recipe_source = r.source AND ro.recipe_id = r.id AND ro.item_id = ?)";
+    $params[] = $itemId;
+}
+if ($ingredientId !== null) {
+    $where[]  = "EXISTS (SELECT 1 FROM recipe_inputs ri WHERE ri.recipe_source = r.source AND ri.recipe_id = r.id AND ri.item_id = ?)";
+    $params[] = $ingredientId;
+}
+
+$whereSql = $where ? "WHERE " . implode(" AND ", $where) : "";
+
+$recipes = query("
+    SELECT " . RECIPE_COLUMNS . "
+    FROM recipes r
+    $whereSql
+    ORDER BY r.source, r.category, r.skill_sort, r.name, r.id
+    LIMIT ? OFFSET ?
+", [...$params, $limit, $offset])->fetchAll();
+
+$recipes = array_map("format_recipe", $recipes);
+
+if (param_bool("with_ingredients")) {
+    $slots = recipe_slots($recipes, withAlternatives: false);
+    foreach ($recipes as &$recipe) {
+        $recipe["ingredients"] = array_map(function ($slot) {
+            unset($slot["alternatives"]);
+            return $slot;
+        }, $slots[$recipe["key"]] ?? []);
+    }
+    unset($recipe);
+}
+
+$total = (int)query("SELECT COUNT(*) FROM recipes r $whereSql", $params)->fetchColumn();
+
+json_out(paginated($recipes, $total, $page, $limit));
