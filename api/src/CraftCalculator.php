@@ -76,6 +76,7 @@ final class CraftCalculator
         }
 
         $this->explore($itemId, 0);
+        $this->buyLoopingItems($itemId);
         if ($this->mode === "cheapest") {
             $this->preferCheaper($itemId);
         }
@@ -403,6 +404,19 @@ final class CraftCalculator
         ];
     }
 
+    // An item whose own recipe chain needs the item again (Black Stone ← Black
+    // Gem ← Black Stone) is a detour: buy it where it is needed, unless it is
+    // the item asked for, the player picked its recipe, or it has no price.
+    private function buyLoopingItems(int $rootId): void
+    {
+        foreach (array_keys($this->cycleItems) as $itemId) {
+            if ($itemId !== $rootId && !isset($this->recipeOverrides[$itemId]) && $this->unitPrice($itemId) !== null) {
+                $this->recipe[$itemId]    = null;
+                $this->buyReason[$itemId] = "loop";
+            }
+        }
+    }
+
     // The slot's item that costs least to buy for one craft; the default unless
     // its price is known and a substitute is strictly cheaper
     private function cheapestSubstitute(array $slot): int
@@ -607,7 +621,7 @@ final class CraftCalculator
             $node["action"] = "buy";
             $node["reason"] = !empty($slot["cut"]) ? "loop" : $this->buyReason[$itemId];
             // The recipe "Craft instead" would use, for items bought by default
-            if ($node["reason"] === "usually_bought") {
+            if ($node["reason"] === "usually_bought" || ($node["reason"] === "loop" && empty($slot["cut"]))) {
                 $node["craft_recipe"] = ($c = $this->recipesFor($itemId)[0] ?? null) ? "{$c['source']}:{$c['id']}" : null;
             }
             $node["cost"]   = $price ? $price["unit"] * $rest : null;

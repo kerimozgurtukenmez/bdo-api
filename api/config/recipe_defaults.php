@@ -7,9 +7,9 @@
 //   "recipe" => item id => "source:recipe id" to use by default
 //
 // The player can still craft or pick another recipe in the calculator.
+// Items whose own recipe chain needs them again (Black Stone ← Black Gem ←
+// Black Stone) are bought automatically and need no entry here.
 return [
-    "buy" => [
-        16001,  // Black Stone: dropped and sold everywhere; its recipe grinds Black Gem, which is made of Black Stones
-    ],
+    "buy"    => [],
     "recipe" => [],
 ];

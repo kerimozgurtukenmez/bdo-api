@@ -15,7 +15,7 @@ final class CraftCalculatorTest extends TestCase
 {
     private const WHEAT = 1, FLOUR = 2, WATER = 3, DOUGH = 4, BREAD = 5, SALT = 6, SEA_WATER = 7,
         EGG = 8, APPLE = 9, STRAWBERRY = 10, PIE = 11, CRYSTAL = 12, SHARD = 13, GEM = 14,
-        FANCY_BREAD = 15, CRUMB = 16, SAUCE = 17;
+        FANCY_BREAD = 15, CRUMB = 16, SAUCE = 17, RING = 18;
 
     private static PDO $pdo;
 
@@ -42,6 +42,7 @@ final class CraftCalculatorTest extends TestCase
             self::FANCY_BREAD => ["Fancy Bread"],
             self::CRUMB       => ["Crumb"],
             self::SAUCE       => ["Sauce"],
+            self::RING        => ["Ring"],
         ]);
 
         // Ingredients: [item, qty, substitutes]; outputs: [item, min, max], main product first
@@ -60,6 +61,7 @@ final class CraftCalculatorTest extends TestCase
         TestDatabase::addRecipe($pdo, "processing", 15, "Sauce", "Simple Cooking", [[self::APPLE, 1]], [[self::SAUCE, 1, 1]]);
         TestDatabase::addRecipe($pdo, "cooking", 25, "Sauce", "Cooking", [[self::APPLE, 2, [[self::STRAWBERRY, 4, true]]]], [[self::SAUCE, 1, 1]]);
         TestDatabase::addRecipe($pdo, "processing", 32, "Egg", "Simple Cooking", [[self::EGG, 2]], [[self::EGG, 3, 3]]);
+        TestDatabase::addRecipe($pdo, "processing", 33, "Ring", "Manufacture", [[self::CRYSTAL, 1]], [[self::RING, 1, 1]]);
 
         // Crumb is Bread's rare product
         $pdo->prepare("INSERT INTO item_details (item_id, description) VALUES (?, ?)")
@@ -312,6 +314,19 @@ final class CraftCalculatorTest extends TestCase
 
         $inner = $plan["tree"]["children"][0]["children"][0];
         $this->assertSame(["Crystal", "buy", "loop"], [$inner["item"]["name"], $inner["action"], $inner["reason"]]);
+    }
+
+    public function testAnIngredientWhoseRecipeNeedsItselfIsBought(): void
+    {
+        // Ring ← Crystal; crafting Crystal needs Crystal again (through Shard): buy it
+        $plan = $this->plan(self::RING, 1);
+
+        $this->assertSame(["Ring" => 1], $this->steps($plan));
+        $this->assertEquals(["Crystal" => ["qty" => 1, "total" => 50000, "reason" => "loop"]], $this->materials($plan));
+
+        // Unless the player picks its recipe
+        $picked = $this->plan(self::RING, 1, ["recipeOverrides" => [self::CRYSTAL => "processing:30"]]);
+        $this->assertSame(["Shard" => 1, "Crystal" => 1, "Ring" => 1], $this->steps($picked));
     }
 
     public function testCheapestModeBuysIntermediatesThatCostLessThanCrafting(): void
