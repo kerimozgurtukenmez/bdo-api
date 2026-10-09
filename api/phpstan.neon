@@ -1,0 +1,13 @@
+parameters:
+    level: 6
+    paths:
+        - src
+        - public
+        - import
+        - tests
+    excludePaths:
+        - import/cache
+    # Arrays here are mostly database rows and JSON; spelling out every shape
+    # adds noise without catching much.
+    ignoreErrors:
+        - identifier: missingType.iterableValue

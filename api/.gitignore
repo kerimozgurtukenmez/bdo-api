@@ -1,2 +1,4 @@
 config/config.local.php
 import/cache/
+vendor/
+.phpunit.cache/

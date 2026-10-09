@@ -1,0 +1,81 @@
+{
+    "_comment": "Real rows from bdocodex query.php responses (2026-10-09), used by BdocodexTest",
+    "cooking": [
+        [
+            106,
+            "<div class=\"iconset_wrapper_big\"><a href=\"/us/recipe/106/\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009003.webp\" class=\"list_icon_big qtooltip\" data-id=\"recipe--106\" alt=\"icon\"]</div></a></div>",
+            "<div class=\"form-check list_checkbox inlinediv qtooltip\" title=\"Login to use favorites\" data-recipe_id=\"106\"><input type=\"checkbox\" class=\"form-check-input pointer fav_checkbox\" id=\"fav_recipe_106\" name=\"fav_recipe_106\" disabled><label class=\"form-check-label\" for=\"fav_recipe_106\"></label></div><a href=\"/us/recipe/106/\" class=\"qtooltip item_grade_0\" data-id=\"recipe--106\"><b>White Sauce</b></a>",
+            "Cooking",
+            {
+                "display": "Beginner 1",
+                "sort_value": 1
+            },
+            "400",
+            "<div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9018/\" class=\"qtooltip\" data-id=\"item--9018\" data-enchant=\"\" data-tiptype=\"recipekey\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009018.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">1</div>[img src=\"/images/icon_lock.webp\" class=\"sub_icon_rt\" width=\"14\" height=\"14\" alt=\"group\"]</a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9065/\" class=\"qtooltip\" data-id=\"item--9065\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009065.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">1</div></a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/7313/\" class=\"qtooltip\" data-id=\"item--7313\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00007313.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">1</div>[img src=\"/images/icon-repeat.webp\" class=\"sub_icon_rt bg-white\" width=\"15\" height=\"15\" alt=\"lock\"]</a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9017/\" class=\"qtooltip\" data-id=\"item--9017\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009017.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">2</div></a></div>",
+            "0.14",
+            "<div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9003/\" class=\"qtooltip\" data-id=\"item--9003\" data-enchant=\"\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009003.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">1~4</div></a></div>",
+            "[9018,9065,7313,7304,7321,7322,7307,7329,7341,7314,7315,7316,7317,9017]",
+            "[]",
+            null,
+            0
+        ],
+        [
+            113,
+            "<div class=\"iconset_wrapper_big\"><a href=\"/us/recipe/113/\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009203.webp\" class=\"list_icon_big qtooltip\" data-id=\"recipe--113\" alt=\"icon\"]</div></a></div>",
+            "<div class=\"form-check list_checkbox inlinediv qtooltip\" title=\"Login to use favorites\" data-recipe_id=\"113\"><input type=\"checkbox\" class=\"form-check-input pointer fav_checkbox\" id=\"fav_recipe_113\" name=\"fav_recipe_113\" disabled><label class=\"form-check-label\" for=\"fav_recipe_113\"></label></div><a href=\"/us/recipe/113/\" class=\"qtooltip item_grade_1\" data-id=\"recipe--113\"><b>Cheese Gratin</b></a>",
+            "Cooking",
+            {
+                "display": "Apprentice 6",
+                "sort_value": 16
+            },
+            "1'000",
+            "<div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9427/\" class=\"qtooltip\" data-id=\"item--9427\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009427.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_1\"]</div><div class=\"quantity_small nowrap\">1</div>[img src=\"/images/icon-repeat.webp\" class=\"sub_icon_rt bg-white\" width=\"15\" height=\"15\" alt=\"lock\"]</a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/7201/\" class=\"qtooltip\" data-id=\"item--7201\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00007201.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">5</div>[img src=\"/images/icon-repeat.webp\" class=\"sub_icon_rt bg-white\" width=\"15\" height=\"15\" alt=\"lock\"]</a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/7318/\" class=\"qtooltip\" data-id=\"item--7318\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00007318.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">4</div>[img src=\"/images/icon-repeat.webp\" class=\"sub_icon_rt bg-white\" width=\"15\" height=\"15\" alt=\"lock\"]</a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9062/\" class=\"qtooltip\" data-id=\"item--9062\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009062.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">3</div></a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9004/\" class=\"qtooltip\" data-id=\"item--9004\" data-enchant=\"\" data-tiptype=\"recipekey\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009004.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">3</div>[img src=\"/images/icon_lock.webp\" class=\"sub_icon_rt\" width=\"14\" height=\"14\" alt=\"group\"]</a></div>",
+            "1.06",
+            "<div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9203/\" class=\"qtooltip\" data-id=\"item--9203\" data-enchant=\"\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009203.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_1\"]</div><div class=\"quantity_small nowrap\">1~4</div></a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/9282/\" class=\"qtooltip\" data-id=\"item--9282\" data-enchant=\"\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009282.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_2\"]</div><div class=\"quantity_small nowrap\">1~2</div></a></div>",
+            "[9427,9431,7201,7202,7203,7204,7205,7318,7306,7328,7340,7309,7331,7343,7311,7333,7345,7312,7334,7346,9062,9004]",
+            "[13,23]",
+            null,
+            0
+        ]
+    ],
+    "processing": [
+        [
+            1,
+            "<div class=\"iconset_wrapper_big\"><a href=\"/us/mrecipe/1/\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00004051.webp\" class=\"list_icon_big qtooltip\" data-id=\"mrecipe--1\" alt=\"icon\"]</div></a></div>",
+            "<a href=\"/us/mrecipe/1/\" class=\"qtooltip item_grade_0\" data-id=\"mrecipe--1\" data-enchant=\"0\"><b><span></span>Melted Iron Shard</b></a>",
+            "Heating",
+            {
+                "display": "Beginner 0",
+                "sort_value": 0
+            },
+            "",
+            "<div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/4001/\" class=\"qtooltip\" data-id=\"item--4001\" data-enchant=\"\" data-tiptype=\"recipe\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00004001.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">5</div></a></div>",
+            "1.50",
+            "<div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/4051/\" class=\"qtooltip\" data-id=\"item--4051\" data-enchant=\"\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00004051.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">1~4</div></a></div><div class=\"iconset_wrapper_medium inlinediv\"><a href=\"/us/item/4052/\" class=\"qtooltip\" data-id=\"item--4052\" data-enchant=\"\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00004052.webp\" alt=\"icon\" class=\"list_icon_medium grade_frame_0\"]</div><div class=\"quantity_small nowrap\">1</div></a></div>",
+            "[4001]",
+            "[]",
+            7,
+            0
+        ]
+    ],
+    "items": [
+        [
+            9003,
+            "<div class=\"iconset_wrapper_big inlinediv\"><a href=\"/us/item/9003/\" class=\"qtooltip\" data-id=\"item--9003\" data-enchant=\"\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00009003.webp\" alt=\"icon\" class=\"list_icon_big grade_frame_0\"]</div></a></div>",
+            "<a href=\"/us/item/9003/\" class=\"qtooltip item_grade_0\" data-id=\"item--9003\" data-enchant=\"0\"><b><span></span>White Sauce</b></a>",
+            1,
+            "[]",
+            0,
+            "[1,0]"
+        ],
+        [
+            4052,
+            "<div class=\"iconset_wrapper_big inlinediv\"><a href=\"/us/item/4052/\" class=\"qtooltip\" data-id=\"item--4052\" data-enchant=\"\"><div class=\"icon_wrapper\">[img src=\"/items/new_icon/03_etc/07_productmaterial/00004052.webp\" alt=\"icon\" class=\"list_icon_big grade_frame_0\"]</div></a></div>",
+            "<a href=\"/us/item/4052/\" class=\"qtooltip item_grade_0\" data-id=\"item--4052\" data-enchant=\"0\"><b><span></span>Iron Ingot</b></a>",
+            1,
+            "[]",
+            0,
+            "[1,0]"
+        ]
+    ]
+}

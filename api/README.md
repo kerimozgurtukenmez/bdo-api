@@ -14,7 +14,23 @@ sudo /opt/lampp/lampp start
 ```
 
 Settings live in `config/config.php`; put machine-specific overrides in
-`config/config.local.php` (git-ignored).
+`config/config.local.php` (git-ignored). The environment variables
+`BDO_DB_HOST`, `BDO_DB_NAME`, `BDO_DB_USER` and `BDO_DB_PASS` override both.
+
+## Development
+
+The API itself has no dependencies; Composer only brings the dev tools.
+
+```bash
+composer install
+composer test      # PHPUnit: unit tests + calculator tests against a throwaway bdo_craft_test database
+composer analyse   # PHPStan (level 6)
+composer check     # both
+```
+
+The calculator tests (`tests/Integration`) build `bdo_craft_test` from
+`database/schema.sql` with a small hand-made data set; the expected numbers in
+the tests are worked out by hand from it.
 
 ## Scripts
 
