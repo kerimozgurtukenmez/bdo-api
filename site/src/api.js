@@ -89,6 +89,9 @@ export const api = {
   /** Mastery bonus tables for cooking and alchemy. Contract: src/mocks/mastery.js */
   mastery: (signal) => get('mastery.php', {}, signal),
 
+  /** What to craft: unit cost, profit and demand of every craftable item, see api/public/profits.php */
+  profits: (params, signal) => get('profits.php', params, signal),
+
   /** Imperial delivery boxes of a life skill. Contract: src/mocks/imperial.js */
   imperial: (skill, signal) => get('imperial.php', { skill }, signal),
 }

@@ -61,26 +61,6 @@ function param_id_map(string $name, string $pattern, string $hint): array
     return $map;
 }
 
-// mastery[cooking]=1500 → ["cooking" => 1500]
-function param_mastery(): array
-{
-    $raw = $_GET["mastery"] ?? [];
-    $error = "'mastery' must look like mastery[cooking]=1500 (cooking or alchemy, 0–" . MAX_MASTERY . ")";
-    if (!is_array($raw)) {
-        throw new ApiError($error);
-    }
-
-    $mastery = [];
-    foreach ($raw as $skill => $value) {
-        $value = filter_var($value, FILTER_VALIDATE_INT);
-        if (!in_array($skill, MASTERY_SKILLS, true) || $value === false || $value < 0 || $value > MAX_MASTERY) {
-            throw new ApiError($error);
-        }
-        $mastery[$skill] = $value;
-    }
-    return $mastery;
-}
-
 // have[9059]=30 → [9059 => 30]; zero amounts are left out
 function param_stock(): array
 {

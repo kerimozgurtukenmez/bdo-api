@@ -13,3 +13,4 @@ require __DIR__ . "/../src/prices.php";
 require __DIR__ . "/../src/imperial.php";
 require __DIR__ . "/../src/worker.php";
 require __DIR__ . "/../src/checks.php";
+require __DIR__ . "/../src/profits.php";

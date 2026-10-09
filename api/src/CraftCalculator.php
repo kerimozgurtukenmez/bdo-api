@@ -29,10 +29,10 @@ final class CraftCalculator
     // processing takes ~9 s. Mastery does not change the products.
     public const MASS_PROCESS_SECONDS   = 90;
     public const SINGLE_PROCESS_SECONDS = 9;
-    private const MASS_PROCESS_CATEGORIES = ["Heating", "Grinding", "Chopping", "Drying", "Filtering", "Shaking", "Simple Cooking", "Simple Alchemy"];
+    public const MASS_PROCESS_CATEGORIES = ["Heating", "Grinding", "Chopping", "Drying", "Filtering", "Shaking", "Simple Cooking", "Simple Alchemy"];
 
     // Tie-break between sources when an item has recipes in several of them
-    private const SOURCE_RANK = ["cooking" => 0, "alchemy" => 0, "processing" => 1];
+    public const SOURCE_RANK = ["cooking" => 0, "alchemy" => 0, "processing" => 1];
 
     private const VISITING = 1;
     private const DONE     = 2;

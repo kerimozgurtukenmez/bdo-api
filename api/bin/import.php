@@ -321,6 +321,8 @@ step("Removed " . count($stale) . " items that bdocodex no longer lists");
 
 $pdo->commit();
 
+require __DIR__ . "/../src/CraftCalculator.php";
+require __DIR__ . "/../src/profits.php";
 require __DIR__ . "/../src/checks.php";
 echo "\nData checks\n" . data_check_report(data_checks($pdo));
 

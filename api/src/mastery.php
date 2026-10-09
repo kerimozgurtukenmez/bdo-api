@@ -41,3 +41,23 @@ function mastery_bonus(string $skill, int $mastery): ?array
 
     return $row ? array_map("floatval", $row) : null;
 }
+
+// mastery[cooking]=1500 → ["cooking" => 1500]
+function param_mastery(): array
+{
+    $raw = $_GET["mastery"] ?? [];
+    $error = "'mastery' must look like mastery[cooking]=1500 (cooking or alchemy, 0–" . MAX_MASTERY . ")";
+    if (!is_array($raw)) {
+        throw new ApiError($error);
+    }
+
+    $mastery = [];
+    foreach ($raw as $skill => $value) {
+        $value = filter_var($value, FILTER_VALIDATE_INT);
+        if (!in_array($skill, MASTERY_SKILLS, true) || $value === false || $value < 0 || $value > MAX_MASTERY) {
+            throw new ApiError($error);
+        }
+        $mastery[$skill] = $value;
+    }
+    return $mastery;
+}

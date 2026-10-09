@@ -13,6 +13,8 @@ if (PHP_SAPI !== "cli") {
 }
 
 require __DIR__ . "/../src/bootstrap.php";
+require __DIR__ . "/../src/CraftCalculator.php";
+require __DIR__ . "/../src/profits.php";
 require __DIR__ . "/../src/checks.php";
 
 $checks = data_checks(db());

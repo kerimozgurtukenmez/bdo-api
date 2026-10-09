@@ -95,6 +95,15 @@ final class ApiDataTest extends TestCase
         $this->assertSame(0, prune_market_snapshots());
     }
 
+    public function testMarketDemandIsSalesPerHour(): void
+    {
+        self::$pdo->exec("INSERT INTO item_market_snapshots (item_id, hour, price, stock, total_trades) VALUES
+            (" . self::STEW . ", DATE_FORMAT(NOW() - INTERVAL 2 HOUR, '%Y-%m-%d %H:00:00'), 500, 10, 100),
+            (" . self::STEW . ", DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00'), 500, 10, 130)");
+
+        $this->assertSame(["per_hour" => 15, "hours" => 2], market_demand(self::$pdo)[self::STEW]);
+    }
+
     public function testMasteryTables(): void
     {
         $tables = mastery_tables();

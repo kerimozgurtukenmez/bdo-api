@@ -21,6 +21,7 @@ const { openSettings } = useSettingsPanel()
       <nav class="nav" aria-label="Main">
         <RouterLink to="/" class="nav-link" exact-active-class="active">Calculator</RouterLink>
         <RouterLink to="/recipes" class="nav-link" active-class="active">Recipes</RouterLink>
+        <RouterLink to="/profits" class="nav-link" active-class="active">Profits</RouterLink>
         <RouterLink to="/imperial" class="nav-link" active-class="active">Imperial</RouterLink>
         <RouterLink to="/about" class="nav-link" active-class="active">About</RouterLink>
       </nav>

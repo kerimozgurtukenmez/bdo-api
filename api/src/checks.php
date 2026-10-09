@@ -43,6 +43,11 @@ function data_checks(PDO $pdo): array
         $result[] = ["level" => $level, "check" => $check, "count" => count($rows), "examples" => array_slice(array_unique($rows), 0, 3)];
     }
 
+    // Ingredients whose recipe chain needs them again: bought where needed
+    $looping = (new ProfitTable($pdo))->loopingItems();
+    $names = $looping ? $pdo->query("SELECT name FROM items WHERE id IN (" . implode(",", array_map("intval", array_slice($looping, 0, 3))) . ")")->fetchAll(PDO::FETCH_COLUMN) : [];
+    $result[] = ["level" => "info", "check" => "Items whose recipe chain needs them again (bought, not crafted)", "count" => count($looping), "examples" => $names];
+
     // Hand-made corrections that point at items the data no longer has
     $defaults = require __DIR__ . "/../config/recipe_defaults.php";
     $ids = array_merge($defaults["buy"], array_keys($defaults["recipe"]));

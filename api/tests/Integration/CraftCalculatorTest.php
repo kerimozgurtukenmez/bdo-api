@@ -329,6 +329,21 @@ final class CraftCalculatorTest extends TestCase
         $this->assertSame(["Shard" => 1, "Crystal" => 1, "Ring" => 1], $this->steps($picked));
     }
 
+    public function testProfitTableWorksOutTheCostOfOneUnit(): void
+    {
+        $rows = (new \ProfitTable(self::$pdo, [], ["buy" => [], "recipe" => []]))->rows();
+
+        // Bread: 3 Dough (Flour bought at 200 < crafting 250, + Water 30, 2 per craft = 115),
+        // Salt 20 (vendor), 2 Egg 200 = 765
+        $this->assertEqualsWithDelta(765.0, $rows[self::BREAD]["cost"], 0.001);
+        $this->assertSame([9000, "cooking:20"], [$rows[self::BREAD]["price"], $rows[self::BREAD]["recipe"]["key"]]);
+        $this->assertNull($rows[self::BREAD]["seconds"]);  // a cooking step: time unknown
+
+        // Crystal needs Crystal again: never listed as something to craft
+        $this->assertArrayNotHasKey(self::CRYSTAL, $rows);
+        $this->assertContains(self::CRYSTAL, (new \ProfitTable(self::$pdo))->loopingItems());
+    }
+
     public function testCheapestModeBuysIntermediatesThatCostLessThanCrafting(): void
     {
         $plan = $this->plan(self::BREAD, 10, ["mode" => "cheapest"]);

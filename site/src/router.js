@@ -24,6 +24,12 @@ const router = createRouter({
       component: () => import('./views/ImperialView.vue'),
       meta: { title: 'Imperial delivery' },
     },
+    {
+      path: '/profits/:source(cooking|alchemy|processing)?',
+      name: 'profits',
+      component: () => import('./views/ProfitsView.vue'),
+      meta: { title: 'What to craft' },
+    },
     { path: '/about', name: 'about', component: () => import('./views/AboutView.vue'), meta: { title: 'About' } },
     { path: '/:pathMatch(.*)*', name: 'not-found', component: () => import('./views/NotFoundView.vue'), meta: { title: 'Page not found' } },
   ],
