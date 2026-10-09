@@ -8,8 +8,10 @@ import { useSettings } from './useSettings.js'
 //   &buy=9017,9018              buy these instead of crafting them
 //   &recipe=9003:cooking:106    item:source:recipe id, comma separated
 //   &sub=7313:7304              default item:substitute, comma separated
+//   &have=9059:30               item:units the player already has, comma separated
 
 const MAX_QTY = 1_000_000
+export const MAX_STOCK = 999_999_999
 
 function intOrNull(value) {
   const n = Number.parseInt(value, 10)
@@ -34,6 +36,11 @@ function parseQuery(query) {
     buy: String(query.buy ?? '').split(',').map(intOrNull).filter(Boolean),
     recipe: parsePairs(query.recipe, /^(\d+):((?:cooking|alchemy|processing):\d+)$/),
     sub: parsePairs(query.sub, /^(\d+):(\d+)$/),
+    have: Object.fromEntries(
+      Object.entries(parsePairs(query.have, /^(\d+):(\d{1,9})$/))
+        .map(([item, units]) => [item, Number(units)])
+        .filter(([, units]) => units > 0),
+    ),
   }
 }
 
@@ -49,6 +56,8 @@ function toQuery(s) {
   if (recipe.length) query.recipe = recipe.join(',')
   const sub = Object.entries(s.sub).map(([item, alt]) => `${item}:${alt}`)
   if (sub.length) query.sub = sub.join(',')
+  const have = Object.entries(s.have).map(([item, units]) => `${item}:${units}`)
+  if (have.length) query.have = have.join(',')
   return query
 }
 
@@ -86,7 +95,17 @@ export function useCraftPlan() {
       update({ sub })
     },
     resetChoices: () => update({ buy: [], recipe: {}, sub: {} }),
+    /** Units of an item the player has; 0 removes it */
+    have: (itemId, units) => {
+      const have = { ...settings.value.have }
+      if (units > 0) have[itemId] = Math.min(units, MAX_STOCK)
+      else delete have[itemId]
+      update({ have })
+    },
+    clearStock: () => update({ have: {} }),
   }
+
+  const hasStock = computed(() => Object.keys(settings.value.have).length > 0)
 
   // ── Loading the plan ─────────────────────────────────────────────────
   const apiParams = computed(() => {
@@ -100,6 +119,7 @@ export function useCraftPlan() {
       buy: s.buy,
       recipe: s.recipe,
       substitute: s.sub,
+      have: s.have,
       // A player setting, not part of the shared link
       mastery: { ...player.mastery },
     }
@@ -134,5 +154,5 @@ export function useCraftPlan() {
   watch(() => JSON.stringify(apiParams.value), () => load(apiParams.value), { immediate: true })
   onBeforeUnmount(() => controller?.abort())
 
-  return { settings, update, plan, loading, error, actions, hasChoices, reload: () => load(apiParams.value) }
+  return { settings, update, plan, loading, error, actions, hasChoices, hasStock, reload: () => load(apiParams.value) }
 }

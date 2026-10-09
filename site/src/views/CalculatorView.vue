@@ -6,7 +6,7 @@ import { FAME_TIERS, useSettings } from '../composables/useSettings.js'
 import { useSettingsPanel } from '../composables/useSettingsPanel.js'
 import { itemRoute } from '../links.js'
 import ItemLink from '../components/ItemLink.vue'
-import { BUY_REASONS, PRICE_SOURCES, SKILLS, ago, number, plural, silver } from '../format.js'
+import { BUY_REASONS, PRICE_SOURCES, SKILLS, ago, compact, number, plural, silver } from '../format.js'
 import ItemIcon from '../components/ItemIcon.vue'
 import RareProducts from '../components/RareProducts.vue'
 import SearchBox from '../components/SearchBox.vue'
@@ -14,9 +14,10 @@ import SegmentedControl from '../components/SegmentedControl.vue'
 import SilverAmount from '../components/SilverAmount.vue'
 import SkillChip from '../components/SkillChip.vue'
 import StatTile from '../components/StatTile.vue'
+import StockInput from '../components/StockInput.vue'
 import TreeNode from '../components/TreeNode.vue'
 
-const { settings, update, plan, loading, error, actions, hasChoices, reload } = useCraftPlan()
+const { settings, update, plan, loading, error, actions, hasChoices, hasStock, reload } = useCraftPlan()
 const { settings: playerSettings, rate, afterTax } = useSettings()
 const { openSettings } = useSettingsPanel()
 
@@ -57,8 +58,13 @@ const YIELDS = [
 
 function selectItem(item) {
   // A different item starts from a clean plan
-  update({ item: item.id, buy: [], recipe: {}, sub: {} })
+  update({ item: item.id, buy: [], recipe: {}, sub: {}, have: {} })
 }
+
+// ── Stock: what the player already has ─────────────────────────────────
+// "I have some" shows an amount field on every material and crafting step
+const stockMode = ref(hasStock.value)
+const stockUsed = computed(() => (plan.value?.cost.stock_value ?? 0) > 0 || plan.value?.steps.some((step) => step.from_stock > 0))
 
 // ── Quantity: typing updates the URL after a short pause ───────────────
 const qtyInput = ref(settings.value.qty)
@@ -80,9 +86,18 @@ const rootRecipe = computed(() => plan.value?.tree?.recipe ?? null)
 
 // Selling on the Central Market: what is kept after tax, and the profit on it
 const saleValue = computed(() => afterTax(plan.value?.market_value.total))
+// Stock used counts at market price: owning it does not make crafting more profitable
 const profit = computed(() => {
-  if (!plan.value || saleValue.value == null || !plan.value.cost.complete) return null
-  return saleValue.value - plan.value.cost.total
+  const cost = plan.value?.cost
+  if (!cost || saleValue.value == null || !cost.complete || !cost.stock_value_complete) return null
+  return saleValue.value - cost.total - cost.stock_value
+})
+const profitHint = computed(() => {
+  if (profit.value == null) {
+    if (saleValue.value == null) return 'Not sold on the market'
+    return plan.value.cost.stock_value_complete ? 'Needs all prices' : 'Needs prices for your stock'
+  }
+  return `${silver(profit.value / plan.value.qty)} per item${stockUsed.value ? ' · your stock at market price' : ''}`
 })
 const profitTone = computed(() => (profit.value == null ? null : profit.value >= 0 ? 'positive' : 'negative'))
 const taxRate = computed(() => `${number(rate.value * 100)}%`)
@@ -106,7 +121,7 @@ const stepGroups = computed(() => {
 
 const copied = ref(false)
 async function copyMaterials() {
-  const lines = plan.value.materials.map((m) => `${m.item.name} x${m.qty}`)
+  const lines = plan.value.materials.filter((m) => m.qty > 0).map((m) => `${m.item.name} x${m.qty}`)
   await navigator.clipboard.writeText(lines.join('\n'))
   copied.value = true
   setTimeout(() => (copied.value = false), 1500)
@@ -197,13 +212,17 @@ async function copyMaterials() {
 
       <!-- Summary -->
       <section class="tiles" aria-live="polite" :class="{ stale: loading }">
-        <StatTile label="Total cost" :hint="`${silver(plan.cost.per_unit)} per item`" :tone="plan.cost.complete ? null : 'warning'">
+        <StatTile
+          :label="stockUsed ? 'Still to buy' : 'Total cost'"
+          :hint="stockUsed && plan.cost.stock_value ? `Your stock covers ${compact(plan.cost.stock_value)}` : `${silver(plan.cost.per_unit)} per item`"
+          :tone="plan.cost.complete ? null : 'warning'"
+        >
           <SilverAmount :value="plan.cost.total" compact />
         </StatTile>
         <StatTile label="Sale value" :hint="plan.market_value.unit ? `After tax · ${silver(plan.market_value.unit)} each on the market` : 'Not sold on the market'">
           <SilverAmount :value="saleValue" compact />
         </StatTile>
-        <StatTile label="Profit" :tone="profitTone" :hint="profit == null ? (saleValue == null ? 'Not sold on the market' : 'Needs all prices') : `${silver(profit / plan.qty)} per item`">
+        <StatTile label="Profit" :tone="profitTone" :hint="profitHint">
           <SilverAmount :value="profit" compact />
         </StatTile>
         <StatTile label="Crafts" :hint="Object.entries(plan.by_source).map(([s, v]) => `${SKILLS[s]} ${number(v.crafts)}`).join(' · ') || 'Nothing to craft'">
@@ -246,9 +265,15 @@ async function copyMaterials() {
                       <RareProducts :products="step.recipe.rare ?? []" :bonus="rareBonus(step.recipe.source)" class="step-rare" />
                     </div>
                     <div class="step-numbers num">
-                      <span>{{ plural(step.crafts, 'craft') }}</span>
-                      <span class="faint small">≈ {{ number(step.produced) }} made, {{ number(step.needed) }} needed</span>
+                      <template v-if="step.crafts">
+                        <span>{{ plural(step.crafts, 'craft') }}</span>
+                        <span class="faint small">≈ {{ number(step.produced) }} made, {{ number(step.needed) }} needed</span>
+                        <span v-if="step.from_stock" class="stock-text small">{{ number(step.from_stock) }} from your stock</span>
+                      </template>
+                      <!-- Stock covers it: nothing to craft -->
+                      <span v-else class="stock-text">{{ number(step.from_stock) }} from your stock</span>
                     </div>
+                    <StockInput v-if="stockMode" :item="step.item" :value="settings.have[step.item.id] ?? 0" @change="actions.have(step.item.id, $event)" />
                   </li>
                 </ol>
               </div>
@@ -274,18 +299,26 @@ async function copyMaterials() {
           <section class="card materials">
             <div class="card-header">
               <h2>Materials to buy</h2>
-              <button class="btn btn-ghost btn-sm" type="button" @click="copyMaterials">{{ copied ? 'Copied' : 'Copy list' }}</button>
+              <div class="header-actions">
+                <button class="btn btn-sm" :class="stockMode ? 'btn-secondary' : 'btn-ghost'" type="button" :aria-pressed="stockMode" @click="stockMode = !stockMode">I have some</button>
+                <button class="btn btn-ghost btn-sm" type="button" @click="copyMaterials">{{ copied ? 'Copied' : 'Copy list' }}</button>
+              </div>
             </div>
-            <table class="material-table">
+            <div v-if="stockMode" class="stock-help">
+              <p>Enter what you already have, here and in the crafting steps. It is used before anything is bought or crafted.</p>
+              <button v-if="hasStock" class="btn btn-ghost btn-sm" type="button" @click="actions.clearStock">Clear</button>
+            </div>
+            <table class="material-table" :class="{ stocking: stockMode }">
               <thead>
                 <tr>
                   <th scope="col">Item</th>
-                  <th scope="col" class="right">Qty</th>
+                  <th v-if="stockMode" scope="col" class="right">Have</th>
+                  <th scope="col" class="right">{{ stockUsed ? 'Buy' : 'Qty' }}</th>
                   <th scope="col" class="right">Total</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="m in plan.materials" :key="m.item.id">
+                <tr v-for="m in plan.materials" :key="m.item.id" :class="{ covered: m.qty === 0 }">
                   <td>
                     <div class="material-item">
                       <ItemIcon :item="m.item" :size="28" />
@@ -296,8 +329,12 @@ async function copyMaterials() {
                           <template v-else>No price</template>
                           <template v-if="!['no_recipe', 'vendor'].includes(m.reason)"> · {{ BUY_REASONS[m.reason] }}</template>
                         </div>
+                        <div v-if="m.from_stock" class="stock-text small num">{{ number(m.from_stock) }} of {{ number(m.needed) }} in stock</div>
                       </div>
                     </div>
+                  </td>
+                  <td v-if="stockMode" class="right">
+                    <StockInput :item="m.item" :value="settings.have[m.item.id] ?? 0" @change="actions.have(m.item.id, $event)" />
                   </td>
                   <td class="right num">{{ number(m.qty) }}</td>
                   <td class="right"><SilverAmount :value="m.total_price" /></td>
@@ -305,7 +342,7 @@ async function copyMaterials() {
               </tbody>
               <tfoot>
                 <tr>
-                  <th scope="row" colspan="2">Total</th>
+                  <th scope="row" :colspan="stockMode ? 3 : 2">Total</th>
                   <td class="right"><SilverAmount :value="plan.cost.total" /></td>
                 </tr>
               </tfoot>
@@ -558,6 +595,10 @@ async function copyMaterials() {
   font-weight: 400;
 }
 
+.stock-text {
+  color: var(--positive);
+}
+
 .step-numbers {
   display: flex;
   flex-direction: column;
@@ -615,6 +656,44 @@ async function copyMaterials() {
   font-weight: 500;
 }
 
+/* The amount fields need room: narrower cell padding while they show */
+.material-table.stocking th,
+.material-table.stocking td {
+  padding-inline: var(--space-2);
+}
+
+.material-table.stocking th:first-child,
+.material-table.stocking td:first-child {
+  padding-left: var(--space-4);
+}
+
+.material-table.stocking .material-item {
+  gap: var(--space-2);
+}
+
+.material-table tr.covered td:not(:has(input)) {
+  opacity: 0.6;
+}
+
+.header-actions {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.stock-help {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+}
+
+.stock-help p {
+  flex: 1;
+}
+
 .prices-note {
   padding: var(--space-3) var(--space-4);
   border-top: 1px solid var(--border);
@@ -628,7 +707,7 @@ async function copyMaterials() {
 
 @media (max-width: 960px) {
   .columns {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .col-side {
@@ -655,6 +734,21 @@ async function copyMaterials() {
 
   .tiles {
     gap: var(--space-2);
+  }
+
+  /* Name on the first line; numbers and the stock field below it */
+  .step {
+    flex-wrap: wrap;
+  }
+
+  .step-text {
+    flex: 1 1 calc(100% - 40px);
+  }
+
+  .step-numbers {
+    flex: 1;
+    align-items: flex-start;
+    margin-left: 40px;
   }
 }
 </style>

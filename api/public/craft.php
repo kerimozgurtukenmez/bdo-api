@@ -9,6 +9,7 @@
 //     &buy=9017,9018  or  buy[]=9017 buy these items instead of crafting them
 //     &substitute[7313]=7304         use a substitute ingredient wherever it is allowed
 //     &mastery[cooking]=1500         mastery adds products to cooking / alchemy crafts (0–3000)
+//     &have[9059]=30                 units the player already has; used before crafting or buying
 //
 // Response: materials to buy, crafting steps in order, total cost and the full
 // recipe tree. Totals round crafts up once per item; the tree rounds per branch.
@@ -79,6 +80,18 @@ function param_mastery(): array
     return $mastery;
 }
 
+// have[9059]=30 → [9059 => 30]; zero amounts are left out
+function param_stock(): array
+{
+    $stock = [];
+    foreach (param_id_map("have", '/^\d{1,9}$/', "units you have (0–999999999)") as $itemId => $units) {
+        if ((int)$units > 0) {
+            $stock[$itemId] = (int)$units;
+        }
+    }
+    return $stock;
+}
+
 $itemId = param_int("item_id") ?? param_int("id") ?? throw new ApiError("'item_id' is required");
 $qty    = param_int("qty", 1, 1, 1_000_000);
 
@@ -90,6 +103,7 @@ $calculator = new CraftCalculator(
     yieldMode:       param_enum("yield", ["avg", "min", "max"], "avg"),
     mode:            param_enum("mode", ["craft", "cheapest"], "craft"),
     mastery:         param_mastery(),
+    stock:           param_stock(),
 );
 
 json_out($calculator->calculate($itemId, $qty));

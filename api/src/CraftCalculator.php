@@ -7,6 +7,9 @@
 // recipe, items sold by NPC vendors, items in $forceBuy, ingredients that would
 // loop back into themselves and, in "cheapest" mode, items whose price is
 // lower than (or known when) the cost of crafting them is not.
+//
+// Items the player already has ($stock) are used first, before anything is
+// crafted or bought; an intermediate taken from stock needs no ingredients.
 
 declare(strict_types=1);
 
@@ -32,6 +35,7 @@ final class CraftCalculator
     private array $substituted = []; // default item ids a substitute was used for
     private array $productBonus = []; // life skill => extra products per craft from mastery
     private array $rare       = [];  // "source:id" => rare products of a chosen recipe
+    private array $treeStock  = [];  // item id => units of stock the tree has not used yet
     private array $warnings   = [];
     private int   $treeNodes  = 0;
 
@@ -43,6 +47,7 @@ final class CraftCalculator
         private readonly string $yieldMode = "avg",    // min | avg | max product per craft
         private readonly string $mode = "craft",       // craft | cheapest
         private readonly array $mastery = [],          // life skill => mastery (cooking, alchemy)
+        private readonly array $stock = [],            // item id => units the player has
     ) {}
 
     public function calculate(int $itemId, int $qty): array
@@ -59,11 +64,20 @@ final class CraftCalculator
         $this->loadRareProducts();
         $this->loadItems($this->referencedItemIds());
 
-        [$materials, $steps] = $this->totals($itemId, $qty);
+        [$materials, $steps, $used] = $this->totals($itemId, $qty);
 
         $known   = array_filter($materials, fn($m) => $m["total_price"] !== null);
-        $missing = array_values(array_filter($materials, fn($m) => $m["total_price"] === null));
+        $missing = array_values(array_filter($materials, fn($m) => $m["total_price"] === null && $m["qty"] > 0));
         $cost    = array_sum(array_column($known, "total_price"));
+
+        // Market value of the stock the plan uses (items without a price left out)
+        $stockValue = 0;
+        $stockValueComplete = true;
+        foreach ($used as $id => $units) {
+            $unit = $this->unitPrice($id);
+            $stockValue += ($unit ?? 0) * $units;
+            $stockValueComplete = $stockValueComplete && $unit !== null;
+        }
 
         $rootPrice = item_price($this->items[$itemId]);
         $value     = $rootPrice ? $rootPrice["unit"] * $qty : null;
@@ -79,6 +93,7 @@ final class CraftCalculator
             $this->warnings[] = "Recipe loop cut, bought instead: " . implode(", ", $names);
         }
 
+        $this->treeStock = $this->stock;
         $tree = $this->node($itemId, $qty, null);
         if ($this->treeNodes >= self::MAX_TREE_NODES) {
             $this->warnings[] = "Tree truncated at " . self::MAX_TREE_NODES . " nodes; totals are still complete";
@@ -95,6 +110,7 @@ final class CraftCalculator
                 "recipe"     => (object)$this->recipeOverrides,
                 "buy"        => array_keys($this->forceBuy),
                 "substitute" => (object)$this->substitutes,
+                "have"       => (object)$this->stock,
             ],
             "cost" => [
                 "total"          => $cost,
@@ -103,11 +119,15 @@ final class CraftCalculator
                 "missing_prices" => array_map(fn($m) => $m["item"], $missing),
                 // Unix time of the oldest market price used, null when none is
                 "prices_updated_at" => $this->oldestMarketPrice($materials),
+                // The player's own stock used by the plan, at market price
+                "stock_value"          => $stockValue,
+                "stock_value_complete" => $stockValueComplete,
             ],
             "market_value" => [
                 "unit"   => $rootPrice["unit"] ?? null,
                 "total"  => $value,
-                "profit" => $value !== null && !$missing ? $value - $cost : null,
+                // Stock used counts at market price: owning it does not make crafting more profitable
+                "profit" => $value !== null && !$missing && $stockValueComplete ? $value - $cost - $stockValue : null,
             ],
             "by_source" => $this->bySource($steps),
             "materials" => $materials,
@@ -343,6 +363,8 @@ final class CraftCalculator
         $demand = [$rootId => $qty];  // units to craft or buy
         $bought = [];                 // units to buy
         $steps  = [];
+        $stock  = $this->stock;       // units of stock not used yet
+        $used   = [];                 // item id => units taken from stock
 
         if ($this->recipe[$rootId] === null) {
             $bought[$rootId] = $qty;
@@ -352,15 +374,19 @@ final class CraftCalculator
         // received its full demand by the time it is crafted. Crafts are
         // rounded up once per item, not once per branch.
         foreach (array_reverse($this->order) as $itemId) {
-            $need = $demand[$itemId] ?? 0;
-            if ($need <= 0) {
+            $demanded = $demand[$itemId] ?? 0;
+            if ($demanded <= 0) {
                 continue;
             }
+
+            $fromStock = $this->takeStock($stock, $used, $itemId, $demanded);
+            $need      = $demanded - $fromStock;
 
             $recipe = $this->recipe[$itemId];
             $crafts = (int)ceil($need / $recipe["yield"]);
 
-            foreach ($this->edges[$itemId] as $slot) {
+            // Nothing to craft when stock covers it: no ingredients either
+            foreach ($crafts > 0 ? $this->edges[$itemId] : [] as $slot) {
                 $childId = $slot["item_id"];
                 $units   = $crafts * $slot["per_craft"];
 
@@ -371,24 +397,31 @@ final class CraftCalculator
                 }
             }
 
+            // A step stays listed when stock covers it, so the player sees why
             $steps[] = [
                 "item"     => $this->itemRef($itemId),
                 "recipe"   => $this->recipeRef($recipe),
                 "needed"   => $need,
+                "from_stock" => $fromStock,
                 "crafts"   => $crafts,
                 "produced" => round($crafts * $recipe["yield"], 2),
                 "exp"      => $recipe["exp"] !== null ? $crafts * $recipe["exp"] : null,
             ];
         }
 
+        // Materials stay listed when stock covers them (qty 0)
         $materials = [];
         foreach ($bought as $itemId => $units) {
-            $price = item_price($this->items[$itemId]);
+            $fromStock = $this->takeStock($stock, $used, $itemId, $units);
+            $toBuy     = $units - $fromStock;
+            $price     = item_price($this->items[$itemId]);
             $materials[] = [
                 "item"        => $this->itemRef($itemId),
-                "qty"         => $units,
+                "qty"         => $toBuy,
+                "needed"      => $units,
+                "from_stock"  => $fromStock,
                 "price"       => $price,
-                "total_price" => $price ? $price["unit"] * $units : null,
+                "total_price" => $price ? $price["unit"] * $toBuy : null,
                 "reason"      => $this->buyReason[$itemId] ?? "loop",
             ];
         }
@@ -397,7 +430,18 @@ final class CraftCalculator
         usort($materials, fn($a, $b) => [$a["total_price"] === null, -($a["total_price"] ?? 0)]
                                     <=> [$b["total_price"] === null, -($b["total_price"] ?? 0)]);
 
-        return [$materials, array_reverse($steps)];
+        return [$materials, array_reverse($steps), $used];
+    }
+
+    // Takes up to $units of an item from the stock left; returns how many
+    private function takeStock(array &$stock, array &$used, int $itemId, int $units): int
+    {
+        $taken = min($stock[$itemId] ?? 0, $units);
+        if ($taken > 0) {
+            $stock[$itemId] -= $taken;
+            $used[$itemId] = ($used[$itemId] ?? 0) + $taken;
+        }
+        return $taken;
     }
 
     private function oldestMarketPrice(array $materials): ?int
@@ -453,16 +497,27 @@ final class CraftCalculator
             ];
         }
 
+        // Stock goes to the branches in tree order
+        $unused = [];
+        $node["from_stock"] = $this->takeStock($this->treeStock, $unused, $itemId, $qty);
+        $rest = $qty - $node["from_stock"];
+        if ($rest === 0) {
+            $node["action"] = "stock";
+            $node["cost"]   = 0;
+            $node["cost_complete"] = true;
+            return $node;
+        }
+
         $recipe = $this->recipe[$itemId];
         if ($recipe === null || !empty($slot["cut"])) {
             $node["action"] = "buy";
             $node["reason"] = !empty($slot["cut"]) ? "loop" : $this->buyReason[$itemId];
-            $node["cost"]   = $price ? $price["unit"] * $qty : null;
+            $node["cost"]   = $price ? $price["unit"] * $rest : null;
             $node["cost_complete"] = $price !== null;
             return $node;
         }
 
-        $crafts = (int)ceil($qty / $recipe["yield"]);
+        $crafts = (int)ceil($rest / $recipe["yield"]);
         $node["action"] = "craft";
         $node["recipe"] = $this->recipeRef($recipe) + [
             "crafts"        => $crafts,

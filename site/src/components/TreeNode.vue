@@ -95,8 +95,9 @@ function pick(key) {
         <div class="title">
           <ItemLink :item="node.item" class="name" />
           <span class="qty num">× {{ number(node.qty) }}</span>
+          <span v-if="node.action === 'stock'" class="badge badge-stock">In your stock</span>
           <!-- Raw materials are the normal case; only other reasons get a badge -->
-          <span v-if="!isCraft && node.reason !== 'no_recipe'" class="badge" :class="{ 'badge-warning': node.reason === 'loop' }">
+          <span v-else-if="!isCraft && node.reason !== 'no_recipe'" class="badge" :class="{ 'badge-warning': node.reason === 'loop' }">
             {{ BUY_REASONS[node.reason] ?? 'Bought' }}
           </span>
         </div>
@@ -111,6 +112,7 @@ function pick(key) {
             <span v-if="node.price">{{ silver(node.price.unit) }} each · {{ node.price.source === 'vendor' ? 'NPC' : 'market' }}</span>
             <span v-else class="warning-text">No price known</span>
           </template>
+          <span v-if="node.from_stock && node.action !== 'stock'" class="stock-text">{{ number(node.from_stock) }} from your stock</span>
         </div>
       </div>
 
@@ -267,6 +269,15 @@ function pick(key) {
 
 .warning-text {
   color: var(--warning);
+}
+
+.stock-text {
+  color: var(--positive);
+}
+
+.badge-stock {
+  background: var(--positive-soft);
+  color: var(--positive);
 }
 
 .cost {

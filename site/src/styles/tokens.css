@@ -22,6 +22,7 @@
   --negative: #ef7070;
   --warning: #e6b450;
   --warning-soft: rgb(230 180 80 / 0.1);
+  --positive-soft: rgb(79 191 139 / 0.1);
 
   --cooking: #e89a5b;
   --alchemy: #a98bf0;
@@ -91,6 +92,7 @@
   --negative: #c94444;
   --warning: #a8741a;
   --warning-soft: rgb(168 116 26 / 0.08);
+  --positive-soft: rgb(31 138 91 / 0.08);
 
   --cooking: #c26a2a;
   --alchemy: #7a5bd6;

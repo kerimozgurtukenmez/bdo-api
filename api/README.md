@@ -71,6 +71,7 @@ the tests are worked out by hand from it.
   - `mode=cheapest` buys intermediates when the market price is lower than crafting them
   - `recipe[item]=source:id`, `buy=id,id`, `substitute[item]=item`, `yield=min|avg|max`
   - `mastery[cooking]=1500`, `mastery[alchemy]=…` adds the mastery's extra products to cooking / alchemy crafts
+  - `have[9059]=30` — units the player already has: used before anything is crafted or bought (an intermediate from stock needs no ingredients). `cost.total` is then what is left to buy; `cost.stock_value` is the stock used at market price, and the profit counts it.
 - `prices.php?item_id=&days=30` — price history, one point per day (`t` = the day at 00:00 UTC)
 - `mastery.php` — cooking and alchemy mastery tables (product, rare, Imperial bonus per 50 mastery)
 - `imperial.php?skill=cooking|alchemy` — Imperial delivery boxes with base price and recipes; the NPC pays base price × (2.5 + mastery Imperial bonus)

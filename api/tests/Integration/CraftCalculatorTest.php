@@ -113,6 +113,56 @@ final class CraftCalculatorTest extends TestCase
         $this->assertEqualsWithDelta(time(), $plan["cost"]["prices_updated_at"], 600);  // prices were just inserted
     }
 
+    public function testStockIsUsedBeforeCraftingOrBuying(): void
+    {
+        $plan = $this->plan(self::BREAD, 10, ["stock" => [self::DOUGH => 10, self::EGG => 25, self::SALT => 4]]);
+
+        // Dough 30 needed, 10 in stock → 10 crafts → Flour 10 (5 crafts) → Wheat 25
+        $this->assertSame(["Flour" => 5, "Dough" => 10, "Bread" => 10], $this->steps($plan));
+        $dough = $plan["steps"][1];
+        $this->assertSame([20, 10], [$dough["needed"], $dough["from_stock"]]);
+
+        $this->assertEquals([
+            "Wheat"         => ["qty" => 25, "total" => 2500, "reason" => "no_recipe"],
+            "Mineral Water" => ["qty" => 10, "total" => 300, "reason" => "no_recipe"],
+            "Salt"          => ["qty" => 6, "total" => 120, "reason" => "vendor"],
+            "Egg"           => ["qty" => 0, "total" => 0, "reason" => "no_recipe"],  // still listed
+        ], $this->materials($plan));
+        $egg = array_values(array_filter($plan["materials"], fn($m) => $m["item"]["name"] === "Egg"))[0];
+        $this->assertSame([20, 20], [$egg["needed"], $egg["from_stock"]]);
+
+        $this->assertSame(2920, $plan["cost"]["total"]);
+        $this->assertTrue($plan["cost"]["complete"]);
+        $this->assertSame(4080, $plan["cost"]["stock_value"]);  // Egg 20 × 200 + Salt 4 × 20; Dough has no price
+        $this->assertFalse($plan["cost"]["stock_value_complete"]);
+        $this->assertNull($plan["market_value"]["profit"]);
+
+        // The tree takes Dough from stock too
+        $doughNode = $plan["tree"]["children"][0];
+        $this->assertSame([30, 10, 10], [$doughNode["qty"], $doughNode["from_stock"], $doughNode["recipe"]["crafts"]]);
+    }
+
+    public function testStockDoesNotChangeTheProfit(): void
+    {
+        $plan = $this->plan(self::BREAD, 10, ["stock" => [self::EGG => 20]]);
+
+        $this->assertSame(4650, $plan["cost"]["total"]);  // 8650 without stock, less 20 Eggs
+        $this->assertSame(4000, $plan["cost"]["stock_value"]);
+        $this->assertSame(81350, $plan["market_value"]["profit"]);  // the same as without stock
+    }
+
+    public function testStockCanCoverTheWholePlan(): void
+    {
+        $plan = $this->plan(self::BREAD, 10, ["stock" => [self::BREAD => 12]]);
+
+        $this->assertSame(["Bread" => 0], $this->steps($plan));
+        $this->assertSame(10, $plan["steps"][0]["from_stock"]);
+        $this->assertSame([], $plan["materials"]);
+        $this->assertSame(0, $plan["cost"]["total"]);
+        $this->assertSame(["stock", 10, 0], [$plan["tree"]["action"], $plan["tree"]["from_stock"], $plan["tree"]["cost"]]);
+        $this->assertArrayNotHasKey("children", $plan["tree"]);
+    }
+
     public function testTotalsRoundCraftsOncePerItemButTheTreeRoundsPerBranch(): void
     {
         $plan = $this->plan(self::PIE, 2);
