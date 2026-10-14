@@ -100,7 +100,9 @@ final class CraftCalculator
         }
 
         $rootPrice = item_price($this->items[$itemId]);
-        $value     = $rootPrice ? $rootPrice["unit"] * $qty : null;
+        // Selling happens on the market: an NPC's (lower) buy price is no sale value
+        $saleUnit  = (int)($this->items[$itemId]["base_price"] ?? 0) ?: (int)($this->items[$itemId]["last_sold_price"] ?? 0);
+        $value     = $saleUnit > 0 ? $saleUnit * $qty : null;
 
         foreach (array_keys($this->overridesUnused()) as $id) {
             $this->warnings[] = "Recipe override for item $id ignored: no such recipe makes it";
@@ -144,7 +146,7 @@ final class CraftCalculator
                 "stock_value_complete" => $stockValueComplete,
             ],
             "market_value" => [
-                "unit"   => $rootPrice["unit"] ?? null,
+                "unit"   => $saleUnit > 0 ? $saleUnit : null,
                 "total"  => $value,
                 // Stock used counts at market price: owning it does not make crafting more profitable
                 "profit" => $value !== null && !$missing && $stockValueComplete ? $value - $cost - $stockValue : null,

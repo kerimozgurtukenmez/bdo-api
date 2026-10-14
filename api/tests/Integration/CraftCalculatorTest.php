@@ -238,6 +238,13 @@ final class CraftCalculatorTest extends TestCase
         $this->assertArrayNotHasKey("Crumb", $this->materials($plan));
     }
 
+    public function testSaleValueIsTheMarketPriceNeverAnNpcPrice(): void
+    {
+        // Salt is crafted here but only sold by an NPC (20): it cannot be sold on the market
+        $plan = $this->plan(self::SALT, 4);
+        $this->assertSame(["unit" => null, "total" => null, "profit" => null], $plan["market_value"]);
+    }
+
     public function testTheCheapestSubstituteIsUsedUnlessThePlayerChoseOne(): void
     {
         // Pie takes Apple (300) or Strawberry (100), 1 each

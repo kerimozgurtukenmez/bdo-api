@@ -103,8 +103,11 @@ const profitHint = computed(() => {
     if (saleValue.value == null) return 'Not sold on the market'
     return plan.value.cost.stock_value_complete ? 'Needs all prices' : 'Needs prices for your stock'
   }
-  if (perHour.value != null) return `${silver(perHour.value)} per hour of processing`
-  return `${silver(profit.value / plan.value.qty)} per item${stockUsed.value ? ' · your stock at market price' : ''}`
+  // The sum itself, so every number can be checked: sale − cost (− stock used)
+  const cost = plan.value.cost
+  const sum = `${compact(saleValue.value)} − ${compact(cost.total)}${cost.stock_value ? ` − ${compact(cost.stock_value)} your stock` : ''}`
+  const rate = perHour.value != null ? `${silver(perHour.value)} per hour of processing` : `${silver(profit.value / plan.value.qty)} per item`
+  return `${sum} · ${rate}`
 })
 // Processing time of the plan, for the Crafts tile
 const craftsHint = computed(() => {
