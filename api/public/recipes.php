@@ -15,6 +15,7 @@ declare(strict_types=1);
 require __DIR__ . "/../src/bootstrap.php";
 require __DIR__ . "/../src/recipes.php";
 require __DIR__ . "/../src/CraftCalculator.php";
+require __DIR__ . "/../src/profits.php";
 api_init();
 
 $id           = param_int("id");
@@ -81,6 +82,8 @@ if ($itemId !== null && param_bool("grouped")) {
     // Same recipes, in the same order, as the calculator considers
     $recipes = (new CraftCalculator(db()))->recipesFor($itemId);
     $slots   = recipe_slots($recipes);
+    // Cost of one unit with each recipe (materials bought or crafted, whichever is cheaper)
+    $ranking = array_column((new ProfitTable(db()))->rankRecipes($itemId), null, "key");
     $rare    = recipe_rare_products($recipes);
 
     $groups = [];
@@ -102,6 +105,9 @@ if ($itemId !== null && param_bool("grouped")) {
             "output_min"  => $recipe["output_min"],
             "output_max"  => $recipe["output_max"],
             "is_default"  => $i === 0,
+            "unit_cost"   => isset($ranking[$key]["cost"]) ? (int)round($ranking[$key]["cost"]) : null,
+            // An ingredient slot with only items the game replaced: cannot be crafted any more
+            "uses_removed" => $ranking[$key]["uses_removed"] ?? false,
             "ingredients" => $slots[$key] ?? [],
             "rare"        => $rare[$key] ?? [],
         ];

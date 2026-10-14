@@ -8,9 +8,25 @@ declare(strict_types=1);
 // ("purchased from" is left out: it also matches "made with X purchased from a Shop")
 const VENDOR_PATTERN = '/\b(can|may) be (bought|purchased)\b|\bpurchas(e|able) (it )?(from|at)\b|\bsold by\b/i';
 
+// Only how the item itself is obtained counts: the "How to Obtain" part when
+// there is one, and never a remark in brackets ("Must have a Packaging Cord
+// (Purchase from the Old Moon Guild Manager)" is about the cord).
 function is_vendor_sold(?string $description): bool
 {
-    return (bool)preg_match(VENDOR_PATTERN, $description ?? "");
+    $text = $description ?? "";
+    if (preg_match('/How to Obtain:(.*)/is', $text, $m)) {
+        $text = $m[1];
+    }
+    return (bool)preg_match(VENDOR_PATTERN, preg_replace('/\([^)]*\)/', "", $text));
+}
+
+// Items the game replaced keep their pages: "Once used to enhance defense gear
+// ... Cannot be used anymore. - Usage: Exchange for Black Stone"
+const REMOVED_PATTERN = '/\bcannot be used anymore\b|\bcan no longer be (used|obtained|crafted)\b|\bno longer (used|obtainable|available)\b/i';
+
+function is_removed_item(?string $description): bool
+{
+    return (bool)preg_match(REMOVED_PATTERN, $description ?? "");
 }
 
 // Icons are stored by their path on the source site, so they can be served

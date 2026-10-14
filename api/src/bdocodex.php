@@ -7,6 +7,13 @@ declare(strict_types=1);
 const BDOCODEX_URL  = "https://bdocodex.com";
 const BDOCODEX_LANG = "us";
 
+// Downloads are cached and spaced out: bdocodex lets us use its data, we keep
+// the load small
+const CODEX_CACHE_DIR     = DATA_DIR . "/cache";
+const CODEX_CACHE_MAX_AGE = 24 * 3600;
+const CODEX_REQUEST_DELAY = 3;  // seconds between requests
+const CODEX_USER_AGENT    = "bdo-craft-calculator (data import, permitted by bdocodex)";
+
 const GRADE_NAMES = [0 => "White", 1 => "Green", 2 => "Blue", 3 => "Gold", 4 => "Orange", 5 => "Unknown"];
 
 function codex_text(string $html): string
@@ -146,6 +153,25 @@ function codex_parse_mastery(array $rows, string $skill): array
 
 // Buy and sell price from an item page ("Buy price: 220,000<img…>",
 // "Sell price: <span…>-</span>" when it cannot be sold). null = not shown.
+// What an item page shows of the in-game tooltip: description (with "How to
+// Obtain"), NPC buy and sell price, weight, and whether it is bound.
+function codex_parse_item_page(string $html): array
+{
+    $description = null;
+    if (preg_match('#- Description:<br>(.*?)<hr class="tooltiphr">#s', $html, $m)) {
+        $text = html_entity_decode(strip_tags(preg_replace('#<br\s*/?>#i', "\n", $m[1])), ENT_QUOTES | ENT_HTML5);
+        $text = preg_replace("/[ \t]+/", " ", $text);
+        $description = trim(preg_replace("/\n{3,}/", "\n\n", implode("\n", array_map("trim", explode("\n", $text)))));
+    }
+
+    return codex_item_page_prices($html) + [
+        "description"     => $description === "" ? null : $description,
+        "weight"          => preg_match('#Weight:\s*([\d.,]+ LT)#', $html, $m) ? $m[1] : null,
+        "bound_on_obtain" => str_contains($html, "Bound when obtained"),
+        "personal_trade"  => !str_contains($html, "Personal transaction unavailable"),
+    ];
+}
+
 function codex_item_page_prices(string $html): array
 {
     $price = fn(string $label) => preg_match("#$label:\s*([\d,.']+)#", $html, $m)
@@ -153,4 +179,43 @@ function codex_item_page_prices(string $html): array
         : null;
 
     return ["buy_price" => $price("Buy price"), "sell_price" => $price("Sell price")];
+}
+
+// The response for a path on bdocodex, from the cache when it is fresh enough
+function codex_download(string $path, string $referer, string $cacheName, bool $refresh, int $maxAge = CODEX_CACHE_MAX_AGE): string
+{
+    static $requests = 0;
+
+    $cacheFile = CODEX_CACHE_DIR . "/$cacheName";
+    if (!$refresh && is_file($cacheFile) && time() - filemtime($cacheFile) < $maxAge) {
+        return file_get_contents($cacheFile);
+    }
+
+    if ($requests++ > 0) {
+        sleep(CODEX_REQUEST_DELAY);
+    }
+
+    $ch = curl_init(BDOCODEX_URL . $path);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 300,
+        CURLOPT_USERAGENT      => CODEX_USER_AGENT,
+        CURLOPT_REFERER        => BDOCODEX_URL . "/" . BDOCODEX_LANG . $referer,
+        CURLOPT_ENCODING       => "",  // accept gzip
+    ]);
+    $body   = (string)curl_exec($ch);
+    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $error  = curl_error($ch);
+    curl_close($ch);
+
+    if ($status !== 200) {
+        throw new RuntimeException("$path: HTTP $status $error");
+    }
+
+    if (!is_dir(dirname($cacheFile))) {
+        mkdir(dirname($cacheFile), 0755, true);
+    }
+    file_put_contents($cacheFile, $body);
+
+    return $body;
 }

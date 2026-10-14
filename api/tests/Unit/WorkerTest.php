@@ -20,7 +20,7 @@ final class WorkerTest extends TestCase
     {
         $tasks = self::tasks();
         $this->assertSame(["game data", "prices"], array_keys($tasks));
-        $this->assertSame([["scrape.php"], ["import.php"], ["download_icons.php"]], $tasks["game data"]["steps"]);
+        $this->assertSame([["scrape.php"], ["scrape_items.php", "--limit=1200"], ["import.php"], ["download_icons.php"]], $tasks["game data"]["steps"]);
     }
 
     public function testEverythingIsDueBeforeTheFirstRun(): void

@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS item_details (
     buy_price          BIGINT       NOT NULL DEFAULT 0,
     sell_price         BIGINT       NOT NULL DEFAULT 0,
     vendor_sold        TINYINT(1)   NOT NULL DEFAULT 0,  -- description says an NPC sells it
+    removed            TINYINT(1)   NOT NULL DEFAULT 0,  -- description says the game replaced it
     warehouse_capacity VARCHAR(50)  DEFAULT NULL,
     PRIMARY KEY (item_id),
     CONSTRAINT fk_item_details_item FOREIGN KEY (item_id) REFERENCES items (id) ON DELETE CASCADE
@@ -114,6 +115,7 @@ CREATE TABLE IF NOT EXISTS recipe_outputs (
 
 -- Columns added after the first release, for databases created before them
 ALTER TABLE recipe_inputs ADD COLUMN IF NOT EXISTS qty_estimated TINYINT(1) NOT NULL DEFAULT 0 AFTER is_alternative;
+ALTER TABLE item_details ADD COLUMN IF NOT EXISTS removed TINYINT(1) NOT NULL DEFAULT 0 AFTER vendor_sold;
 
 -- One Central Market price per item and day (written by bin/update_prices.php)
 CREATE TABLE IF NOT EXISTS item_price_history (

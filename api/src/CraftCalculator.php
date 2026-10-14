@@ -51,6 +51,7 @@ final class CraftCalculator
     private array $rare       = [];  // "source:id" => rare products of a chosen recipe
     private array $treeStock  = [];  // item id => units of stock the tree has not used yet
     private array $defaults;         // config/recipe_defaults.php
+    private ?ProfitTable $costs = null;  // unit costs, to rank an item's recipes
     private array $warnings   = [];
     private int   $treeNodes  = 0;
 
@@ -262,11 +263,11 @@ final class CraftCalculator
         $stmt->execute([$itemId]);
         $recipes = $stmt->fetchAll();
 
-        // Prefer the recipe named after the item, then cooking/alchemy over
-        // processing, then the lowest id (bdocodex lists the standard recipe
-        // first; equipment melting and similar variants come later).
-        $rank = fn($r) => [-$r["name_match"], self::SOURCE_RANK[$r["source"]] ?? 9, $r["id"]];
-        usort($recipes, fn($a, $b) => $rank($a) <=> $rank($b));
+        // Best first, as ProfitTable ranks them: the cheapest per unit; recipes
+        // that need an item the game removed or one without any price last
+        $this->costs ??= new ProfitTable($this->pdo, $this->mastery, $this->defaults);
+        $order = array_flip(array_column($this->costs->rankRecipes($itemId), "key"));
+        usort($recipes, fn($a, $b) => ($order["{$a['source']}:{$a['id']}"] ?? PHP_INT_MAX) <=> ($order["{$b['source']}:{$b['id']}"] ?? PHP_INT_MAX));
 
         foreach ($recipes as &$recipe) {
             $yield = match ($this->yieldMode) {

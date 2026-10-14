@@ -11,7 +11,8 @@ function worker_tasks(array $config): array
     return [
         "game data" => [
             "every" => $config["game_data_hours"] * 3600,
-            "steps" => [["scrape.php"], ["import.php"], ["download_icons.php"]],
+            // Item pages: at most an hour a day, so the first few thousand take some days
+            "steps" => [["scrape.php"], ["scrape_items.php", "--limit=1200"], ["import.php"], ["download_icons.php"]],
         ],
         "prices" => [
             "every" => $config["prices_minutes"] * 60,

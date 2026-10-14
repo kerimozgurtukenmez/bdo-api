@@ -27,10 +27,6 @@ require __DIR__ . "/../src/bdocodex.php";
 set_time_limit(0);
 ini_set("memory_limit", "3G");
 
-const CACHE_DIR     = DATA_DIR . "/cache";
-const CACHE_MAX_AGE = 24 * 3600;
-const REQUEST_DELAY = 3;  // seconds between requests
-const USER_AGENT    = "bdo-craft-calculator (data import, permitted by bdocodex)";
 
 // name => [query, page that loads it, minimum plausible row count]
 const DATASETS = [
@@ -54,51 +50,13 @@ echo "=== bdocodex scrape ===\n\n";
 // Download
 // ─────────────────────────────────────────────────────────────────────────────
 
-// The response for a path on bdocodex, from the cache when it is fresh enough
-function downloadCodex(string $path, string $referer, string $cacheName, bool $refresh): string
-{
-    static $requests = 0;
-
-    $cacheFile = CACHE_DIR . "/$cacheName";
-    if (!$refresh && is_file($cacheFile) && time() - filemtime($cacheFile) < CACHE_MAX_AGE) {
-        return file_get_contents($cacheFile);
-    }
-
-    if ($requests++ > 0) {
-        sleep(REQUEST_DELAY);
-    }
-
-    $ch = curl_init(BDOCODEX_URL . $path);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 300,
-        CURLOPT_USERAGENT      => USER_AGENT,
-        CURLOPT_REFERER        => BDOCODEX_URL . "/" . BDOCODEX_LANG . $referer,
-        CURLOPT_ENCODING       => "",  // accept gzip
-    ]);
-    $body   = (string)curl_exec($ch);
-    $status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error  = curl_error($ch);
-    curl_close($ch);
-
-    if ($status !== 200) {
-        throw new RuntimeException("$path: HTTP $status $error");
-    }
-
-    if (!is_dir(dirname($cacheFile))) {
-        mkdir(dirname($cacheFile), 0755, true);
-    }
-    file_put_contents($cacheFile, $body);
-
-    return $body;
-}
 
 function fetchRows(string $name, bool $refresh): array
 {
     [$query, $page, $minRows] = DATASETS[$name];
     echo "  $name\n";
 
-    $body = downloadCodex("/query.php?$query&l=" . BDOCODEX_LANG, $page, "$name.json", $refresh);
+    $body = codex_download("/query.php?$query&l=" . BDOCODEX_LANG, $page, "$name.json", $refresh);
     $data = json_decode(preg_replace('/^\xEF\xBB\xBF/', "", $body), true);  // responses start with a BOM
     $rows = $data["aaData"] ?? null;
     if (!is_array($rows) || count($rows) < $minRows) {
@@ -142,7 +100,7 @@ echo "\nDownloading " . count($boxIds) . " Imperial box pages...\n";
 $itemPages = [];
 $withoutPrice = [];
 foreach (array_keys($boxIds) as $id) {
-    $html   = downloadCodex("/" . BDOCODEX_LANG . "/item/$id/", "/items/", "pages/item_$id.html", $refresh);
+    $html   = codex_download("/" . BDOCODEX_LANG . "/item/$id/", "/items/", "pages/item_$id.html", $refresh);
     $prices = codex_item_page_prices($html);
     if ($prices["buy_price"] === null) {
         $withoutPrice[] = "$id {$itemNames[$id]}";

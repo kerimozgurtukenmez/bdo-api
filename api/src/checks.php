@@ -33,6 +33,12 @@ function data_checks(PDO $pdo): array
         ["info", "Market prices older than a day", "
             SELECT i.name FROM item_prices p JOIN items i ON i.id = p.item_id
             WHERE p.base_price > 0 AND p.updated_at < NOW() - INTERVAL 1 DAY"],
+        ["info", "Recipe items without an item page yet (bin/scrape_items.php)", "
+            SELECT i.name FROM $recipeItems t JOIN items i ON i.id = t.item_id
+            LEFT JOIN item_details d ON d.item_id = t.item_id WHERE d.description IS NULL"],
+        ["info", "Recipe items the game replaced (description: cannot be used anymore)", "
+            SELECT i.name FROM $recipeItems t JOIN items i ON i.id = t.item_id
+            JOIN item_details d ON d.item_id = t.item_id WHERE d.removed = 1"],
         ["info", "Substitute amounts estimated from the grade", "
             SELECT CONCAT(i.name, ' x', ri.qty_min) FROM recipe_inputs ri JOIN items i ON i.id = ri.item_id WHERE ri.qty_estimated = 1"],
     ];

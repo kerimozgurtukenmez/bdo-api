@@ -268,6 +268,8 @@ watch(usedPage, () => item.value && loadUsedIn())
                 <span class="faint small">{{ recipe.skill_level }}</span>
                 <span class="faint small">{{ recipe.output_min === recipe.output_max ? recipe.output_min : `${recipe.output_min}–${recipe.output_max}` }} per craft</span>
                 <span v-if="recipe.is_default" class="badge badge-accent">Default</span>
+                <span v-if="recipe.uses_removed" class="badge badge-warning" title="An ingredient was replaced by the game; this recipe cannot be crafted any more">Uses removed items</span>
+                <span class="faint small num">{{ recipe.unit_cost != null ? `≈ ${silver(recipe.unit_cost)} per item` : 'Cost unknown' }}</span>
               </div>
               <RareProducts :products="recipe.rare ?? []" />
             </div>
@@ -276,6 +278,7 @@ watch(usedPage, () => item.value && loadUsedIn())
           </li>
         </ul>
         <p v-if="makeGroups && hasSubstitutes" class="faint small">Ingredients in a dashed box can replace each other: use any one of them.</p>
+        <p v-if="makeGroups && makeRecipes.length > 1" class="faint small">Cheapest first (materials bought or crafted, whichever costs less); recipes whose cost is unknown come last.</p>
         <button v-if="!recipeFilter.trim() && makeRecipes.length > SHOWN_RECIPES" class="btn btn-ghost btn-sm show-all" type="button" @click="showAllRecipes = !showAllRecipes">
           {{ showAllRecipes ? 'Show fewer' : `Show all ${number(makeRecipes.length)} recipes` }}
         </button>

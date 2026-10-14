@@ -8,7 +8,7 @@
 //   php bin/worker.php --once   run the tasks that are due, then exit (cron)
 //
 // Tasks, in this order ("worker" in config/config.php sets how often):
-//   game data   scrape.php → import.php → download_icons.php   every 24 hours
+//   game data   scrape.php → scrape_items.php (≤1200 pages) → import.php → download_icons.php   every 24 hours
 //   prices      update_prices.php                              every 60 minutes
 //
 // The last run of each task is kept in the database (worker_runs), so a

@@ -185,6 +185,8 @@ function pick(key) {
                 <SkillChip :source="recipe.source" :category="recipe.category" />
                 <span class="faint small">{{ recipe.skill_level }}</span>
                 <span v-if="recipe.key === node.recipe.key" class="badge badge-accent">In use</span>
+                <span v-if="recipe.uses_removed" class="badge badge-warning">Uses removed items</span>
+                <span class="faint small num">{{ recipe.unit_cost != null ? `≈ ${silver(recipe.unit_cost)} per item` : 'Cost unknown' }}</span>
               </span>
               <span class="picker-ings">
                 <ItemIcon v-for="ing in recipe.ingredients" :key="ing.slot" :item="ing" :size="26" :qty="ing.qty_min" :title="ing.name" />

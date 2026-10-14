@@ -3,7 +3,8 @@
 // worked out in one pass over all recipes, and how fast items sell.
 //
 // The choices are CraftCalculator's in "cheapest" mode: the default recipe
-// (config/recipe_defaults.php first), the substitute cheapest to buy, vendor
+// (config/recipe_defaults.php first, else the cheapest one that can be made —
+// see rankRecipes()), the substitute cheapest to buy, vendor
 // goods and usually bought items are bought, an intermediate is bought when
 // that costs less than crafting it, and an ingredient whose recipe chain needs
 // it again is bought. Amounts are averages per unit; a plan rounds crafts up,
@@ -19,6 +20,7 @@ final class ProfitTable
     private array $memo       = [];  // item id => ["cost", "seconds"] as an ingredient
     private array $visiting   = [];
     private array $looping    = [];  // items whose recipe chain needs them again
+    private array $best       = [];  // item id => its default recipe (null: none)
     private array $defaults;
     private array $bonus      = [];  // life skill => extra products per craft
     private int   $massSize   = 0;   // processings per Mass Process (0: none)
@@ -98,7 +100,7 @@ final class ProfitTable
     {
         $recipeItems = "(SELECT item_id FROM recipe_inputs UNION SELECT item_id FROM recipe_outputs)";
         foreach ($this->pdo->query("
-            SELECT i.id, i.name, i.grade, i.grade_name, i.icon, p.current_stock, " . PRICE_COLUMNS . "
+            SELECT i.id, i.name, i.grade, i.grade_name, i.icon, p.current_stock, d.removed, " . PRICE_COLUMNS . "
             FROM $recipeItems t
             JOIN items i             ON i.id = t.item_id
             LEFT JOIN item_details d ON d.item_id = t.item_id
@@ -147,15 +149,68 @@ final class ProfitTable
         unset($list);
     }
 
+    // The recipe used for an item: the hand-made default, else the best ranked
     private function defaultRecipe(int $itemId): ?array
     {
+        if (array_key_exists($itemId, $this->best)) {
+            return $this->best[$itemId];
+        }
         $wanted = $this->defaults["recipe"][$itemId] ?? null;
         foreach ($this->candidates[$itemId] ?? [] as $recipe) {
-            if ($wanted === null || $wanted === "{$recipe['source']}:{$recipe['id']}") {
-                return $recipe;
+            if ("{$recipe['source']}:{$recipe['id']}" === $wanted) {
+                return $this->best[$itemId] = $recipe;
             }
         }
-        return $this->candidates[$itemId][0] ?? null;
+        return $this->best[$itemId] = $this->rankRecipes($itemId)[0]["recipe"] ?? null;
+    }
+
+    // The recipes that make an item, best first: cheapest per unit; then those
+    // that loop back to the item; then those whose cost is unknown (an
+    // ingredient the game removed, or one without any price), in the usual order.
+    // [["recipe", "key", "cost", "loops", "uses_removed"]]
+    public function rankRecipes(int $itemId): array
+    {
+        $wasVisiting = isset($this->visiting[$itemId]);
+        $this->visiting[$itemId] = true;
+
+        $ranked = [];
+        foreach ($this->candidates[$itemId] ?? [] as $order => $recipe) {
+            unset($this->looping[$itemId]);
+            [$cost] = $this->craftCost($recipe);
+            $ranked[] = [
+                "recipe"       => $recipe,
+                "key"          => "{$recipe['source']}:{$recipe['id']}",
+                "cost"         => $cost,
+                "loops"        => isset($this->looping[$itemId]),
+                "uses_removed" => $this->usesRemoved($recipe),
+                "order"        => $order,
+            ];
+        }
+        if (!$wasVisiting) {
+            unset($this->visiting[$itemId]);
+        }
+
+        usort($ranked, fn($a, $b) => [$a["cost"] === null, $a["loops"], $a["cost"] ?? 0, $a["order"]]
+                                 <=> [$b["cost"] === null, $b["loops"], $b["cost"] ?? 0, $b["order"]]);
+        // Whether the item loops depends on the recipe it is made with
+        if ($ranked && $ranked[0]["loops"]) {
+            $this->looping[$itemId] = true;
+        } else {
+            unset($this->looping[$itemId]);
+        }
+        return $ranked;
+    }
+
+    // A slot where every option is an item the game removed: the recipe is dead
+    private function usesRemoved(array $recipe): bool
+    {
+        foreach ($this->slots["{$recipe['source']}:{$recipe['id']}"] as $slot) {
+            $options = [$slot["item_id"], ...array_keys($slot["alternatives"])];
+            if (!array_filter($options, fn($id) => empty($this->items[$id]["removed"]))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private function unitPrice(int $itemId): ?int
@@ -175,9 +230,12 @@ final class ProfitTable
             return $this->memo[$itemId];
         }
 
+        $item = $this->items[$itemId] ?? [];
+        if (!empty($item["removed"])) {
+            return $this->memo[$itemId] = [null, null];  // the game replaced it: cannot be had
+        }
         $price  = $this->unitPrice($itemId);
         $recipe = $this->defaultRecipe($itemId);
-        $item   = $this->items[$itemId] ?? [];
         if ($recipe === null || !empty($item["vendor_sold"]) || in_array($itemId, $this->defaults["buy"], true)) {
             return $this->memo[$itemId] = [$price, 0.0];
         }

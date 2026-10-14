@@ -240,5 +240,15 @@ final class ImporterTest extends TestCase
         $this->assertFalse(is_vendor_sold("Made by Shaking Wheat Flour with Mineral Water that was purchased from a Shop."));
         $this->assertFalse(is_vendor_sold("An ingredient used in Cooking. It can be received from a farm quest."));
         $this->assertFalse(is_vendor_sold(null));
+        $this->assertTrue(is_vendor_sold("A catalyst.\n\n- Usage: Craft Old Moon Censer\n\n- How to Obtain: Purchase from Old Moon Managers found in each town"));
+        // Only the item's own way of obtaining counts
+        $this->assertFalse(is_vendor_sold("- Must have a Heavy Duty Packaging Cord (Purchase from the Old Moon Guild Manager)"));
+        $this->assertFalse(is_vendor_sold("Made with Salt purchased from a vendor.\n- How to Obtain: Cooking"));
+    }
+
+    public function testReplacedItemsAreRecognisedFromTheirDescription(): void
+    {
+        $this->assertTrue(is_removed_item("Once used to enhance defense gear through the Black Spirit. Cannot be used anymore.\n\n- Usage: Exchange for Black Stone via the Black Spirit."));
+        $this->assertFalse(is_removed_item("This item can be used to enhance gear through the Black Spirit."));
     }
 }

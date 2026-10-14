@@ -20,6 +20,7 @@ declare(strict_types=1);
 require __DIR__ . "/../src/bootstrap.php";
 require __DIR__ . "/../src/recipes.php";
 require __DIR__ . "/../src/CraftCalculator.php";
+require __DIR__ . "/../src/profits.php";
 require __DIR__ . "/../src/mastery.php";
 api_init();
 

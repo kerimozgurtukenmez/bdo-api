@@ -106,14 +106,14 @@ step("Importing item details...");
 
 $stmt = $pdo->prepare("
     INSERT INTO item_details (item_id, name_kr, category, weight, description, bound_on_obtain,
-                              personal_trade, buy_price, sell_price, vendor_sold, warehouse_capacity)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                              personal_trade, buy_price, sell_price, vendor_sold, removed, warehouse_capacity)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON DUPLICATE KEY UPDATE
         name_kr = VALUES(name_kr), category = VALUES(category), weight = VALUES(weight),
         description = VALUES(description), bound_on_obtain = VALUES(bound_on_obtain),
         personal_trade = VALUES(personal_trade), buy_price = VALUES(buy_price),
         sell_price = VALUES(sell_price), vendor_sold = VALUES(vendor_sold),
-        warehouse_capacity = VALUES(warehouse_capacity)
+        removed = VALUES(removed), warehouse_capacity = VALUES(warehouse_capacity)
 ");
 
 $count = $vendors = $removed = 0;
@@ -135,6 +135,7 @@ foreach (readJson("item_descriptions.json", optional: true) as $item) {
         $item["buy_price"] ?? 0,
         $item["sell_price"] ?? 0,
         $vendorSold,
+        is_removed_item($item["description"] ?? null) ? 1 : 0,
         $item["warehouse_capacity"] ?? null,
     ]);
     $count++;
@@ -155,6 +156,36 @@ foreach (readJson("item_pages.json", optional: true) as $page) {
     }
 }
 step("  $count prices from item pages");
+
+// Item pages read by bin/scrape_items.php: newer than item_descriptions.json,
+// and the only details most recipe items have
+$stmt = $pdo->prepare("
+    INSERT INTO item_details (item_id, weight, description, bound_on_obtain, personal_trade,
+                              buy_price, sell_price, vendor_sold, removed)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+        weight = COALESCE(VALUES(weight), weight), description = COALESCE(VALUES(description), description),
+        bound_on_obtain = VALUES(bound_on_obtain), personal_trade = VALUES(personal_trade),
+        buy_price = VALUES(buy_price), sell_price = VALUES(sell_price),
+        vendor_sold = VALUES(vendor_sold), removed = VALUES(removed)
+");
+$count = $vendors = $gone = 0;
+foreach (readJson("item_info.json", optional: true) as $page) {
+    if (!isset($itemNames[$page["id"]])) {
+        continue;
+    }
+    $vendorSold = is_vendor_sold($page["description"]) ? 1 : 0;
+    $isRemoved  = is_removed_item($page["description"]) ? 1 : 0;
+    $stmt->execute([
+        $page["id"], $page["weight"], $page["description"],
+        $page["bound_on_obtain"] ? 1 : 0, $page["personal_trade"] ? 1 : 0,
+        $page["buy_price"] ?? 0, $page["sell_price"] ?? 0, $vendorSold, $isRemoved,
+    ]);
+    $count++;
+    $vendors += $vendorSold;
+    $gone    += $isRemoved;
+}
+step("  $count item pages ($vendors sold by NPC vendors, $gone replaced by the game)");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STEP 3: recipes_*.json → recipes, recipe_inputs, recipe_outputs

@@ -15,7 +15,7 @@ final class CraftCalculatorTest extends TestCase
 {
     private const WHEAT = 1, FLOUR = 2, WATER = 3, DOUGH = 4, BREAD = 5, SALT = 6, SEA_WATER = 7,
         EGG = 8, APPLE = 9, STRAWBERRY = 10, PIE = 11, CRYSTAL = 12, SHARD = 13, GEM = 14,
-        FANCY_BREAD = 15, CRUMB = 16, SAUCE = 17, RING = 18;
+        FANCY_BREAD = 15, CRUMB = 16, SAUCE = 17, RING = 18, OLD_GEM = 19;
 
     private static PDO $pdo;
 
@@ -43,6 +43,7 @@ final class CraftCalculatorTest extends TestCase
             self::CRUMB       => ["Crumb"],
             self::SAUCE       => ["Sauce"],
             self::RING        => ["Ring"],
+            self::OLD_GEM     => ["Old Gem", 1],
         ]);
 
         // Ingredients: [item, qty, substitutes]; outputs: [item, min, max], main product first
@@ -62,6 +63,9 @@ final class CraftCalculatorTest extends TestCase
         TestDatabase::addRecipe($pdo, "cooking", 25, "Sauce", "Cooking", [[self::APPLE, 2, [[self::STRAWBERRY, 4, true]]]], [[self::SAUCE, 1, 1]]);
         TestDatabase::addRecipe($pdo, "processing", 32, "Egg", "Simple Cooking", [[self::EGG, 2]], [[self::EGG, 3, 3]]);
         TestDatabase::addRecipe($pdo, "processing", 33, "Ring", "Manufacture", [[self::CRYSTAL, 1]], [[self::RING, 1, 1]]);
+        // Cheapest on paper, but the game replaced Old Gem
+        TestDatabase::addRecipe($pdo, "processing", 34, "Fancy Bread", "Heating", [[self::OLD_GEM, 1]], [[self::FANCY_BREAD, 1, 1]]);
+        $pdo->exec("INSERT INTO item_details (item_id, removed) VALUES (" . self::OLD_GEM . ", 1)");
 
         // Crumb is Bread's rare product
         $pdo->prepare("INSERT INTO item_details (item_id, description) VALUES (?, ?)")
@@ -263,7 +267,7 @@ final class CraftCalculatorTest extends TestCase
     public function testSubstituteUsesItsOwnAmount(): void
     {
         // Sauce takes 2 Apples or 4 Strawberries per craft
-        $plan = $this->plan(self::SAUCE, 3, ["substitutes" => [self::APPLE => self::STRAWBERRY]]);
+        $plan = $this->plan(self::SAUCE, 3, ["substitutes" => [self::APPLE => self::STRAWBERRY], "recipeOverrides" => [self::SAUCE => "cooking:25"]]);
 
         $this->assertSame(["qty" => 12, "total" => 1200, "reason" => "no_recipe"], $this->materials($plan)["Strawberry"]);
         $slot = $plan["tree"]["children"][0]["slot"];
@@ -393,8 +397,12 @@ final class CraftCalculatorTest extends TestCase
     {
         $keys = fn(int $item) => array_map(fn($r) => "{$r['source']}:{$r['id']}", (new CraftCalculator(self::$pdo))->recipesFor($item));
 
-        $this->assertSame(["processing:10", "processing:9"], $keys(self::FLOUR));  // named after the item first
-        $this->assertSame(["cooking:25", "processing:15"], $keys(self::SAUCE));    // then cooking/alchemy first
+        // Cheapest per unit first: Flour from Wheat 250, from Bread (765 / 2) 383
+        $this->assertSame(["processing:10", "processing:9"], $keys(self::FLOUR));
+        // Sauce: 1 Apple (300) beats 4 Strawberries (400)
+        $this->assertSame(["processing:15", "cooking:25"], $keys(self::SAUCE));
+        // Fancy Bread: Bread + Egg (965), 2 Bread (1530); Old Gem (removed) last although cheapest
+        $this->assertSame(["cooking:22", "cooking:23", "processing:34"], $keys(self::FANCY_BREAD));
         $this->assertSame([], $keys(self::EGG));                                   // needs itself: never used
         $this->assertSame([], $keys(self::CRUMB));                                 // only a byproduct
     }
