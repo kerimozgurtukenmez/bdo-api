@@ -103,11 +103,20 @@ const profitHint = computed(() => {
     if (saleValue.value == null) return 'Not sold on the market'
     return plan.value.cost.stock_value_complete ? 'Needs all prices' : 'Needs prices for your stock'
   }
-  // The sum itself, so every number can be checked: sale − cost (− stock used)
+  // The sum itself, so every number can be checked: you get − you spend (− stock used)
   const cost = plan.value.cost
-  const sum = `${compact(saleValue.value)} − ${compact(cost.total)}${cost.stock_value ? ` − ${compact(cost.stock_value)} your stock` : ''}`
-  const rate = perHour.value != null ? `${silver(perHour.value)} per hour of processing` : `${silver(profit.value / plan.value.qty)} per item`
+  const sum = `You get ${compact(saleValue.value)} − you spend ${compact(cost.total)}${cost.stock_value ? ` − your stock ${compact(cost.stock_value)}` : ''}`
+  const lost = profit.value < 0 ? 'lost' : 'earned'
+  const rate = perHour.value != null
+    ? `${silver(Math.abs(perHour.value))} ${lost} per hour of processing`
+    : `${silver(Math.abs(profit.value / plan.value.qty))} ${lost} per item`
   return `${sum} · ${rate}`
+})
+// Where "You get" comes from: the market price of every item, less the market tax
+const getHint = computed(() => {
+  const unit = plan.value?.market_value.unit
+  if (!unit) return 'Not sold on the market'
+  return `Selling ${number(plan.value.qty)} × ${silver(unit)} on the market, minus ${number(100 - rate.value * 100)}% tax`
 })
 // Processing time of the plan, for the Crafts tile
 const craftsHint = computed(() => {
@@ -229,18 +238,19 @@ async function copyMaterials() {
 
       <!-- Summary -->
       <section class="tiles" aria-live="polite" :class="{ stale: loading }">
+        <!-- Plain words: what you spend, what you get, and the difference -->
         <StatTile
-          :label="stockUsed ? 'Still to buy' : 'Total cost'"
-          :hint="stockUsed && plan.cost.stock_value ? `Your stock covers ${compact(plan.cost.stock_value)}` : `${silver(plan.cost.per_unit)} per item`"
+          :label="stockUsed ? 'You still spend' : 'You spend'"
+          :hint="stockUsed && plan.cost.stock_value ? `On materials · your stock covers ${compact(plan.cost.stock_value)} more` : `On materials · ${silver(plan.cost.per_unit)} per item`"
           :tone="plan.cost.complete ? null : 'warning'"
         >
           <SilverAmount :value="plan.cost.total" compact />
         </StatTile>
-        <StatTile label="Sale value" :hint="plan.market_value.unit ? `After tax · ${silver(plan.market_value.unit)} each on the market` : 'Not sold on the market'">
+        <StatTile label="You get" :hint="getHint">
           <SilverAmount :value="saleValue" compact />
         </StatTile>
-        <StatTile label="Profit" :tone="profitTone" :hint="profitHint">
-          <SilverAmount :value="profit" compact />
+        <StatTile :label="profit != null && profit < 0 ? 'Loss' : 'Profit'" :tone="profitTone" :hint="profitHint">
+          <SilverAmount :value="profit == null ? null : Math.abs(profit)" compact />
         </StatTile>
         <StatTile label="Crafts" :hint="craftsHint">
           {{ number(plan.steps.reduce((sum, step) => sum + step.crafts, 0)) }}
